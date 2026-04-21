@@ -333,55 +333,302 @@ export interface AnalysisResult {
 	}[];
 }
 
-export async function generateQuiz(
+// ----------------------------------------------------------------------
+// Adaptive quiz — Level 2 "tutor" design.
+//
+// 3 stages:
+//   initial   → 3 questions spanning vocab, comprehension, nuance
+//   adaptive  → 2 follow-up questions that target whatever the user got
+//               wrong in stage 1 (or harder variants if everything was right)
+//   diagnose  → final summary: per-category breakdown + strengths/weaknesses
+// ----------------------------------------------------------------------
+
+export interface QuizQuestion {
+	/** Human-readable label like "Vocabulary" — kept for UI badge. */
+	type: string;
+	/** Machine tag used for grouping ("vocab", "comprehension", "idiom", ...). */
+	category: string;
+	question: string;
+	options: string[];
+	correct: number;
+	context?: string;
+	/** If the question is about a specific saved word, the word itself. */
+	sourceWord?: string;
+}
+
+export interface QuizAnswer {
+	questionIndex: number;
+	selected: number;
+	correct: boolean;
+}
+
+export interface QuizDiagnosis {
+	score: number;
+	total: number;
+	comprehension: 'excellent' | 'good' | 'fair' | 'needs-work';
+	byCategory: { category: string; correct: number; total: number }[];
+	summary: string;
+	strengths: string[];
+	weaknesses: string[];
+	recommendations: string[];
+}
+
+/** Sample up to N segments evenly across the transcript. */
+function sampleSegments<T>(segments: T[], count: number): T[] {
+	if (segments.length <= count) return segments;
+	const step = Math.max(1, Math.floor(segments.length / count));
+	return segments.filter((_, i) => i % step === 0).slice(0, count);
+}
+
+function ensureQuestions(raw: unknown): QuizQuestion[] {
+	if (!Array.isArray(raw)) return [];
+	const cleaned: QuizQuestion[] = [];
+	for (const q of raw) {
+		if (
+			q &&
+			typeof q === 'object' &&
+			typeof (q as any).question === 'string' &&
+			Array.isArray((q as any).options) &&
+			typeof (q as any).correct === 'number'
+		) {
+			const options = (q as any).options.map((o: unknown) => String(o ?? ''));
+			if (options.length !== 4) continue;
+			cleaned.push({
+				type: String((q as any).type ?? 'Comprehension'),
+				category: String((q as any).category ?? 'comprehension').toLowerCase(),
+				question: String((q as any).question),
+				options,
+				correct: Math.max(0, Math.min(3, Math.floor((q as any).correct))),
+				context: (q as any).context ? String((q as any).context) : undefined,
+				sourceWord: (q as any).sourceWord ? String((q as any).sourceWord) : undefined
+			});
+		}
+	}
+	return cleaned;
+}
+
+/**
+ * Stage 1 — Initial quiz.
+ * Returns 3 questions spanning category variety. Biases toward the user's
+ * saved words for this episode when available so the quiz feels personal.
+ */
+export async function generateInitialQuiz(
 	segments: { text: string }[],
-	vocabulary: { word: string; definition: string; example?: string }[],
+	savedWords: { word: string; definition: string; example?: string }[],
 	userId: number
-): Promise<{ type: string; question: string; options: string[]; correct: number; context?: string }[]> {
-	// Pick a sample of segments spread across the video
-	const step = Math.max(1, Math.floor(segments.length / 8));
-	const sample = segments.filter((_, i) => i % step === 0).slice(0, 8);
+): Promise<QuizQuestion[]> {
+	const sample = sampleSegments(segments, 8);
 	const transcript = sample.map((s, i) => `${i + 1}. ${s.text}`).join('\n');
-
-	const vocabList = vocabulary.slice(0, 8)
-		.map(v => `- "${v.word}": ${v.definition}`)
+	const vocabList = savedWords
+		.slice(0, 10)
+		.map((v) => `- "${v.word}": ${v.definition}`)
 		.join('\n');
+	const savedWordsInstruction = savedWords.length
+		? `At least 1 of the 3 questions MUST test a word from the learner's saved list above — they marked these because they found them hard or interesting.`
+		: `No saved words yet, so aim for a mix of comprehension and vocabulary from the transcript.`;
 
-	const text = await chat(`You are a language learning quiz generator.
+	const text = await chat(
+		`You are a language learning tutor creating a short diagnostic quiz.
 
 VIDEO TRANSCRIPT EXCERPTS:
 ${transcript}
 
-VOCABULARY FROM THIS VIDEO:
+LEARNER'S SAVED WORDS FROM THIS VIDEO:
 ${vocabList || '(none yet)'}
 
-Generate 5 multiple-choice questions to test understanding of this video content. Mix:
-- 2-3 comprehension questions about what was said/meant
-- 2-3 vocabulary questions about words from the list (if available, else more comprehension)
+Task: generate exactly 3 multiple-choice questions to measure how well the learner understood this clip. ${savedWordsInstruction}
+
+Aim for variety across these categories: "vocab", "comprehension", "idiom", "nuance". Pick whichever 3 fit the transcript best.
 
 Rules:
 - Each question has exactly 4 options, only 1 correct
-- Questions must be answerable from the transcript/vocabulary above
-- Keep questions clear and concise
-- correct is the 0-based index of the right answer
+- Questions must be answerable from the transcript or saved-words list
+- Keep wording clear and concise
+- "correct" is the 0-based index of the right answer
+- "category" is one lowercase word from {vocab, comprehension, idiom, nuance, slang, tone}
+- Include "sourceWord" only when the question is about a specific saved word
 
-Reply with JSON only:
+Reply with JSON only, an array of 3 objects:
 [
-  {
-    "type": "Comprehension",
-    "question": "...",
-    "options": ["A", "B", "C", "D"],
-    "correct": 0,
-    "context": "optional short quote from transcript"
-  }
-]`, 800, userId);
+  {"type":"Vocabulary","category":"vocab","question":"...","options":["A","B","C","D"],"correct":0,"context":"optional quote","sourceWord":"takeout"}
+]`,
+		900,
+		userId
+	);
 
-	try {
-		const cleaned = text.replace(/^```json\s*/m, '').replace(/\s*```\s*$/m, '').trim();
-		const parsed = JSON.parse(cleaned);
-		if (Array.isArray(parsed)) return parsed;
-		return [];
-	} catch {
-		return [];
+	const parsed = extractJson(text);
+	return ensureQuestions(parsed).slice(0, 3);
+}
+
+/**
+ * Stage 2 — Adaptive follow-up.
+ * Looks at what the learner got wrong in the initial batch and drills that
+ * category. If they aced it, generates harder variants instead.
+ */
+export async function generateAdaptiveQuiz(
+	segments: { text: string }[],
+	savedWords: { word: string; definition: string; example?: string }[],
+	previousQuestions: QuizQuestion[],
+	previousAnswers: QuizAnswer[],
+	userId: number
+): Promise<QuizQuestion[]> {
+	const sample = sampleSegments(segments, 8);
+	const transcript = sample.map((s, i) => `${i + 1}. ${s.text}`).join('\n');
+	const vocabList = savedWords
+		.slice(0, 10)
+		.map((v) => `- "${v.word}": ${v.definition}`)
+		.join('\n');
+
+	// Build a compact record of Q+A for the LLM.
+	const review = previousQuestions
+		.map((q, i) => {
+			const ans = previousAnswers.find((a) => a.questionIndex === i);
+			const chosen = ans ? q.options[ans.selected] : '(skipped)';
+			const correct = q.options[q.correct];
+			const mark = ans?.correct ? '✓' : '✗';
+			return `${i + 1}. [${q.category}] ${mark} "${q.question}"\n   learner picked: ${chosen}\n   correct: ${correct}`;
+		})
+		.join('\n');
+
+	const wrongCategories = [
+		...new Set(
+			previousAnswers
+				.filter((a) => !a.correct)
+				.map((a) => previousQuestions[a.questionIndex]?.category)
+				.filter(Boolean)
+		)
+	];
+	const strategy = wrongCategories.length
+		? `The learner struggled with: ${wrongCategories.join(', ')}. Generate 2 new questions that drill these categories with different angles — don't just repeat the same question.`
+		: `The learner got everything right. Generate 2 harder questions in the same topic areas — subtle nuance, double-meaning, or tricky idioms.`;
+
+	const text = await chat(
+		`You are a language tutor running a short adaptive quiz.
+
+VIDEO TRANSCRIPT EXCERPTS:
+${transcript}
+
+LEARNER'S SAVED WORDS:
+${vocabList || '(none)'}
+
+PREVIOUS QUESTIONS & ANSWERS:
+${review}
+
+${strategy}
+
+Rules:
+- Exactly 2 new questions (never repeat a prior question)
+- Each has 4 options, 1 correct
+- Use the same JSON schema: {type, category, question, options, correct, context?, sourceWord?}
+- category is lowercase one word from {vocab, comprehension, idiom, nuance, slang, tone}
+
+Reply with JSON only, an array of 2 objects.`,
+		700,
+		userId
+	);
+
+	const parsed = extractJson(text);
+	return ensureQuestions(parsed).slice(0, 2);
+}
+
+/**
+ * Stage 3 — Diagnosis.
+ * Computes the per-category breakdown deterministically, and asks the LLM
+ * for a short personalized summary + recommendations.
+ */
+export async function diagnoseQuiz(
+	questions: QuizQuestion[],
+	answers: QuizAnswer[],
+	userId: number
+): Promise<QuizDiagnosis> {
+	// Deterministic scoring first — don't let the LLM get the numbers wrong.
+	const total = questions.length;
+	const score = answers.filter((a) => a.correct).length;
+	const categoryMap = new Map<string, { correct: number; total: number }>();
+	for (let i = 0; i < questions.length; i++) {
+		const cat = questions[i].category || 'comprehension';
+		const row = categoryMap.get(cat) ?? { correct: 0, total: 0 };
+		row.total += 1;
+		const a = answers.find((x) => x.questionIndex === i);
+		if (a?.correct) row.correct += 1;
+		categoryMap.set(cat, row);
 	}
+	const byCategory = Array.from(categoryMap.entries()).map(([category, v]) => ({
+		category,
+		correct: v.correct,
+		total: v.total
+	}));
+
+	const pct = total > 0 ? score / total : 0;
+	const comprehension: QuizDiagnosis['comprehension'] =
+		pct >= 0.9 ? 'excellent' : pct >= 0.7 ? 'good' : pct >= 0.5 ? 'fair' : 'needs-work';
+
+	// LLM fills in the human parts (summary, strengths, weaknesses, recs).
+	const breakdown = byCategory
+		.map((r) => `${r.category}: ${r.correct}/${r.total}`)
+		.join(', ');
+	const missed = questions
+		.map((q, i) => ({ q, a: answers.find((x) => x.questionIndex === i) }))
+		.filter(({ a }) => a && !a.correct)
+		.map(({ q, a }) => `- [${q.category}] "${q.question}" — picked "${q.options[a!.selected]}", correct was "${q.options[q.correct]}"`)
+		.join('\n');
+
+	const text = await chat(
+		`You are a language tutor giving friendly, concrete feedback after a short adaptive quiz.
+
+Score: ${score}/${total}
+Category breakdown: ${breakdown}
+Questions the learner got wrong:
+${missed || '(none — perfect score)'}
+
+Write a JSON object with these fields:
+- summary: one friendly sentence (under 25 words) describing how they did
+- strengths: array of 1–3 short strings (category names or phrases they handled well)
+- weaknesses: array of 0–3 short strings (topics to revisit)
+- recommendations: array of 1–3 concrete next steps (e.g. "Re-watch the middle section where idioms cluster", "Save 3 more words tagged 'slang'")
+
+Keep everything simple — written for a 10-year-old level reader.
+
+Reply with JSON only, one object with those 4 keys.`,
+		400,
+		userId
+	);
+
+	const parsed = extractJson<{
+		summary?: string;
+		strengths?: string[];
+		weaknesses?: string[];
+		recommendations?: string[];
+	}>(text);
+
+	return {
+		score,
+		total,
+		comprehension,
+		byCategory,
+		summary:
+			parsed?.summary ||
+			(pct === 1
+				? 'Perfect score — you really got this clip!'
+				: pct >= 0.7
+					? 'Nice work — you understood most of this clip.'
+					: 'Good effort — try watching again and reviewing the tricky parts.'),
+		strengths: Array.isArray(parsed?.strengths) ? parsed!.strengths!.slice(0, 3) : [],
+		weaknesses: Array.isArray(parsed?.weaknesses) ? parsed!.weaknesses!.slice(0, 3) : [],
+		recommendations: Array.isArray(parsed?.recommendations)
+			? parsed!.recommendations!.slice(0, 3)
+			: []
+	};
+}
+
+/**
+ * Legacy single-call quiz entrypoint — kept for any callers still using it.
+ * New flow is generateInitialQuiz + generateAdaptiveQuiz + diagnoseQuiz.
+ */
+export async function generateQuiz(
+	segments: { text: string }[],
+	vocabulary: { word: string; definition: string; example?: string }[],
+	userId: number
+): Promise<QuizQuestion[]> {
+	return generateInitialQuiz(segments, vocabulary, userId);
 }

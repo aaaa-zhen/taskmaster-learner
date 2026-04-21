@@ -68,22 +68,59 @@
 		return data.segments[0] ?? null;
 	});
 
-	// Quiz state
+	// Adaptive quiz state — two-phase tutor.
+	// Flow: openQuiz() fetches 3 initial questions → user answers all 3 →
+	// loadAdaptivePhase() fetches 2 follow-ups tailored to weaknesses → user
+	// answers those → loadDiagnosis() fetches the final breakdown.
 	interface Question {
 		type: string;
+		category: string;
 		question: string;
 		options: string[];
 		correct: number;
 		context?: string;
+		sourceWord?: string;
 	}
+	interface QuizAnswerRecord {
+		questionIndex: number;
+		selected: number;
+		correct: boolean;
+	}
+	interface Diagnosis {
+		score: number;
+		total: number;
+		comprehension: 'excellent' | 'good' | 'fair' | 'needs-work';
+		byCategory: { category: string; correct: number; total: number }[];
+		summary: string;
+		strengths: string[];
+		weaknesses: string[];
+		recommendations: string[];
+	}
+	type QuizPhase =
+		| 'idle'
+		| 'loading_initial'
+		| 'initial'
+		| 'loading_adaptive'
+		| 'adaptive'
+		| 'loading_diagnosis'
+		| 'diagnosed';
+
+	let quizPhase = $state<QuizPhase>('idle');
 	let questions = $state<Question[]>([]);
-	let quizLoading = $state(false);
+	let answerRecords = $state<QuizAnswerRecord[]>([]);
 	let currentQ = $state(0);
 	let selectedAnswer = $state(-1);
 	let answered = $state(false);
-	let quizScore = $state(0);
-	let quizFinished = $state(false);
-	let answers = $state<{ok: boolean; q: string}[]>([]);
+	let diagnosis = $state<Diagnosis | null>(null);
+
+	// Derived helpers
+	const quizLoading = $derived(
+		quizPhase === 'loading_initial' ||
+			quizPhase === 'loading_adaptive' ||
+			quizPhase === 'loading_diagnosis'
+	);
+	const quizFinished = $derived(quizPhase === 'diagnosed');
+	const quizScore = $derived(answerRecords.filter((a) => a.correct).length);
 	let wordsSaved = $state(0);
 
 	$effect(() => {
@@ -138,24 +175,84 @@
 	}
 
 	async function openQuiz() {
-		currentQ = 0; selectedAnswer = -1; answered = false;
-		quizScore = 0; quizFinished = false; answers = [];
+		currentQ = 0;
+		selectedAnswer = -1;
+		answered = false;
+		answerRecords = [];
 		questions = [];
-		quizLoading = true;
+		diagnosis = null;
+		quizPhase = 'loading_initial';
 		quizOpen = true;
 		try {
 			const res = await fetch('/api/quiz', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ episodeId: data.episode.id })
+				body: JSON.stringify({ episodeId: data.episode.id, phase: 'initial' })
 			});
 			const result = await res.json();
-			questions = result.questions || [];
+			const initial: Question[] = Array.isArray(result.questions) ? result.questions : [];
+			if (initial.length === 0) {
+				quizPhase = 'idle';
+				return;
+			}
+			questions = initial;
+			quizPhase = 'initial';
 		} catch {
 			questions = [];
-		} finally {
-			quizLoading = false;
+			quizPhase = 'idle';
 		}
+	}
+
+	async function loadAdaptivePhase() {
+		quizPhase = 'loading_adaptive';
+		try {
+			const res = await fetch('/api/quiz', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					episodeId: data.episode.id,
+					phase: 'adaptive',
+					previousQuestions: questions,
+					previousAnswers: answerRecords
+				})
+			});
+			const result = await res.json();
+			const followUps: Question[] = Array.isArray(result.questions) ? result.questions : [];
+			if (followUps.length === 0) {
+				// No adaptive follow-ups — go straight to diagnosis.
+				await loadDiagnosis();
+				return;
+			}
+			questions = [...questions, ...followUps];
+			currentQ = questions.length - followUps.length;
+			selectedAnswer = -1;
+			answered = false;
+			quizPhase = 'adaptive';
+		} catch {
+			// On failure, still let the user see their partial results.
+			await loadDiagnosis();
+		}
+	}
+
+	async function loadDiagnosis() {
+		quizPhase = 'loading_diagnosis';
+		try {
+			const res = await fetch('/api/quiz', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					episodeId: data.episode.id,
+					phase: 'diagnose',
+					questions,
+					answers: answerRecords
+				})
+			});
+			const result = await res.json();
+			diagnosis = result.diagnosis || null;
+		} catch {
+			diagnosis = null;
+		}
+		quizPhase = 'diagnosed';
 	}
 
 	function clearDownloadPolling() {
@@ -479,17 +576,45 @@
 	}
 	function pickOption(i: number) {
 		if (answered) return;
-		answered = true; selectedAnswer = i;
-		const ok = i === questions[currentQ].correct;
-		if (ok) quizScore++;
-		answers = [...answers, { ok, q: questions[currentQ].question }];
-	}
-	function nextQuestion() {
-		if (currentQ + 1 >= questions.length) { quizFinished = true; }
-		else { currentQ++; selectedAnswer = -1; answered = false; }
+		answered = true;
+		selectedAnswer = i;
+		const q = questions[currentQ];
+		const ok = i === q.correct;
+		answerRecords = [...answerRecords, { questionIndex: currentQ, selected: i, correct: ok }];
 	}
 
-	const quizProgress = $derived(questions.length > 0 ? (currentQ / questions.length) * 100 : 0);
+	async function nextQuestion() {
+		// Last question in the current batch?
+		const isLastInBatch = currentQ + 1 >= questions.length;
+
+		if (!isLastInBatch) {
+			currentQ++;
+			selectedAnswer = -1;
+			answered = false;
+			return;
+		}
+
+		// End of initial batch (3 questions) → fetch adaptive follow-ups.
+		if (quizPhase === 'initial') {
+			await loadAdaptivePhase();
+			return;
+		}
+		// End of adaptive batch → diagnose.
+		if (quizPhase === 'adaptive') {
+			await loadDiagnosis();
+			return;
+		}
+	}
+
+	// Progress bar fills based on completed questions, with a small bump
+	// during the transition between batches so it doesn't appear stuck.
+	const quizProgress = $derived.by(() => {
+		if (quizPhase === 'diagnosed') return 100;
+		// Assume a target of 5 questions across both batches.
+		const target = 5;
+		const completed = answerRecords.length;
+		return Math.min(100, (completed / target) * 100);
+	});
 
 	async function saveWord(vocab: any) {
 		try {
@@ -708,41 +833,92 @@
 			<div class="quiz-body">
 				{#if quizLoading}
 					<div class="quiz-empty">
-						<svg class="quiz-spinner" viewBox="0 0 24 24" fill="none" aria-label="Generating quiz…">
+						<svg class="quiz-spinner" viewBox="0 0 24 24" fill="none" aria-label="Loading…">
 							<circle cx="12" cy="12" r="9" stroke="var(--border)" stroke-width="2"/>
 							<path d="M12 3 a9 9 0 0 1 9 9" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/>
 						</svg>
-						<p>Generating quiz…</p>
+						<p>
+							{#if quizPhase === 'loading_initial'}Warming up the tutor…
+							{:else if quizPhase === 'loading_adaptive'}Looking at your weak spots and asking a couple more…
+							{:else if quizPhase === 'loading_diagnosis'}Grading and writing your feedback…
+							{/if}
+						</p>
 					</div>
 				{:else if questions.length === 0}
 					<div class="quiz-empty"><p>Not enough data for a quiz yet.</p></div>
 				{:else if quizFinished}
 					<div class="quiz-results">
 						<h3>Quiz complete</h3>
-						<div class="quiz-score-big">{quizScore}<span class="quiz-total">/{questions.length}</span></div>
-						<p class="quiz-msg">
-							{#if quizScore === questions.length}Perfect! You really get it!
-							{:else if quizScore >= questions.length * 0.7}Great work — you're getting the hang of it!
-							{:else}Keep studying! Watch the clip again and try once more.{/if}
-						</p>
-						<div class="quiz-result-rows">
-							{#each answers as a, i}
-								<div class="result-row">
-									<span class="result-mark" class:ok={a.ok} class:no={!a.ok}>{a.ok ? '✓' : '✕'}</span>
-									<span class="result-q">Q{i+1} · {a.q}</span>
+						{#if diagnosis}
+							<div class="quiz-score-big">{diagnosis.score}<span class="quiz-total">/{diagnosis.total}</span></div>
+							<div class="quiz-comprehension" class:good={diagnosis.comprehension === 'good'} class:excellent={diagnosis.comprehension === 'excellent'} class:fair={diagnosis.comprehension === 'fair'} class:needs-work={diagnosis.comprehension === 'needs-work'}>
+								Comprehension · <strong>{diagnosis.comprehension.replace('-', ' ')}</strong>
+							</div>
+							<p class="quiz-msg">{diagnosis.summary}</p>
+
+							{#if diagnosis.byCategory.length > 0}
+								<div class="category-grid">
+									{#each diagnosis.byCategory as cat}
+										<div class="category-row">
+											<span class="category-name">{cat.category}</span>
+											<div class="category-bar">
+												<div
+													class="category-fill"
+													class:perfect={cat.correct === cat.total}
+													class:partial={cat.correct > 0 && cat.correct < cat.total}
+													class:zero={cat.correct === 0}
+													style="width: {cat.total > 0 ? (cat.correct / cat.total) * 100 : 0}%"
+												></div>
+											</div>
+											<span class="category-score">{cat.correct}/{cat.total}</span>
+										</div>
+									{/each}
 								</div>
-							{/each}
-							</div>
-							<div class="quiz-result-actions">
-								<button type="button" class="quiz-btn ghost" onclick={openQuiz}>Try again</button>
-								<button type="button" class="quiz-btn" onclick={() => quizOpen = false}>Back to clip</button>
-							</div>
+							{/if}
+
+							{#if diagnosis.strengths.length > 0}
+								<div class="diag-block">
+									<div class="diag-label">Strong on</div>
+									<ul class="diag-list">
+										{#each diagnosis.strengths as s}<li>{s}</li>{/each}
+									</ul>
+								</div>
+							{/if}
+							{#if diagnosis.weaknesses.length > 0}
+								<div class="diag-block">
+									<div class="diag-label">Revisit</div>
+									<ul class="diag-list">
+										{#each diagnosis.weaknesses as w}<li>{w}</li>{/each}
+									</ul>
+								</div>
+							{/if}
+							{#if diagnosis.recommendations.length > 0}
+								<div class="diag-block">
+									<div class="diag-label">Next steps</div>
+									<ul class="diag-list">
+										{#each diagnosis.recommendations as r}<li>{r}</li>{/each}
+									</ul>
+								</div>
+							{/if}
+						{:else}
+							<!-- Diagnosis failed / blocked — fall back to a simple summary. -->
+							<div class="quiz-score-big">{quizScore}<span class="quiz-total">/{questions.length}</span></div>
+							<p class="quiz-msg">Here's how you did — run it again for a deeper breakdown.</p>
+						{/if}
+
+						<div class="quiz-result-actions">
+							<button type="button" class="quiz-btn ghost" onclick={openQuiz}>Try again</button>
+							<button type="button" class="quiz-btn" onclick={() => quizOpen = false}>Back to clip</button>
 						</div>
-					{:else}
+					</div>
+				{:else}
 					<div class="q-meta">
 						<span class="q-type">{questions[currentQ].type}</span>
-						<span class="q-num">Q{currentQ + 1}/{questions.length}</span>
+						<span class="q-num">Q{answerRecords.length + 1}</span>
 						<span class="q-score">{quizScore} correct</span>
+						{#if quizPhase === 'adaptive'}
+							<span class="q-phase">Adaptive</span>
+						{/if}
 					</div>
 					<h3 class="q-question">{questions[currentQ].question}</h3>
 					{#if questions[currentQ].context}
@@ -775,7 +951,11 @@
 					<div class="quiz-foot">
 						<span class="quiz-hint"><kbd>1</kbd>–<kbd>4</kbd> answer · <kbd>Esc</kbd> close</span>
 						<button type="button" class="quiz-btn" disabled={!answered} onclick={nextQuestion}>
-							{currentQ + 1 >= questions.length ? 'See results' : 'Next'}
+							{#if currentQ + 1 >= questions.length}
+								{quizPhase === 'initial' ? 'Continue →' : 'See results'}
+							{:else}
+								Next
+							{/if}
 						</button>
 					</div>
 			{/if}
@@ -1217,16 +1397,49 @@
 
 	.quiz-results { text-align: center; padding: 8px 0; }
 	.quiz-results h3 { font-size: 22px; font-weight: 500; margin-bottom: 8px; }
-	.quiz-score-big { font-size: 72px; font-weight: 700; color: var(--accent); line-height: 1; margin: 16px 0 8px; letter-spacing: -0.04em; }
+	.quiz-score-big { font-size: 72px; font-weight: 700; color: var(--accent); line-height: 1; margin: 16px 0 4px; letter-spacing: -0.04em; }
 	.quiz-total { color: var(--text-light); font-size: 42px; margin-left: 4px; }
-	.quiz-msg { color: var(--text-muted); font-size: 14.5px; margin-bottom: 20px; }
-	.quiz-result-rows { text-align: left; border-top: 1px solid var(--border); padding-top: 14px; margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
-	.result-row { display: flex; gap: 10px; align-items: center; font-size: 13.5px; color: var(--text-muted); }
-	.result-mark { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; color: white; flex-shrink: 0; }
-	.result-mark.ok { background: var(--green); }
-	.result-mark.no { background: var(--red); }
-	.result-q { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+	.quiz-comprehension {
+		display: inline-block;
+		font-size: 11.5px;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--text-light);
+		padding: 3px 10px;
+		border-radius: 20px;
+		border: 1px solid var(--border);
+		background: var(--bg-dark);
+		margin-bottom: 12px;
+	}
+	.quiz-comprehension.excellent { color: var(--green); border-color: color-mix(in srgb, var(--green) 40%, var(--border)); }
+	.quiz-comprehension.good { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+	.quiz-comprehension.fair { color: var(--text-muted); }
+	.quiz-comprehension.needs-work { color: var(--red); border-color: color-mix(in srgb, var(--red) 30%, var(--border)); }
+	.quiz-msg { color: var(--text-muted); font-size: 14.5px; margin-bottom: 16px; max-width: 42ch; margin-left: auto; margin-right: auto; }
+	.category-grid { text-align: left; border-top: 1px solid var(--border); padding-top: 14px; margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+	.category-row { display: grid; grid-template-columns: 96px 1fr 42px; align-items: center; gap: 10px; font-size: 12.5px; color: var(--text-muted); }
+	.category-name { text-transform: capitalize; font-weight: 500; color: var(--text); }
+	.category-bar { height: 6px; background: var(--bg-dark); border-radius: 999px; overflow: hidden; border: 1px solid var(--border); }
+	.category-fill { height: 100%; transition: width 0.4s ease; }
+	.category-fill.perfect { background: var(--green); }
+	.category-fill.partial { background: var(--accent); }
+	.category-fill.zero { background: var(--red); }
+	.category-score { font-variant-numeric: tabular-nums; text-align: right; }
+	.diag-block { text-align: left; margin-top: 16px; }
+	.diag-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-light); font-weight: 600; margin-bottom: 4px; }
+	.diag-list { margin: 0; padding-left: 18px; font-size: 13.5px; color: var(--text); line-height: 1.55; display: flex; flex-direction: column; gap: 3px; }
 	.quiz-result-actions { display: flex; gap: 10px; justify-content: center; margin-top: 20px; }
+	.q-phase {
+		padding: 2px 8px;
+		border-radius: 20px;
+		font-size: 10px;
+		font-weight: 600;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		background: color-mix(in srgb, var(--accent) 12%, var(--bg-card));
+		color: var(--accent);
+		margin-left: auto;
+	}
 	.quiz-empty { text-align: center; padding: 40px 20px; color: var(--text-muted); display: flex; flex-direction: column; align-items: center; gap: 12px; }
 	.quiz-spinner { width: 28px; height: 28px; animation: spin 0.8s linear infinite; }
 	@keyframes spin { to { transform: rotate(360deg); } }
