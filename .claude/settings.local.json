@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run:*)",
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(grep -E \"\\\\.\\(svelte|ts|js\\)$\")",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(curl:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"Initial commit: Clip Learner — learn English from YouTube clips:*)",
+      "Bash(npm list:*)",
+      "Bash(wc:*)",
+      "Bash(npx svelte-check:*)",
+      "Bash(ls -la /Users/meizu/Downloads/clip-learner-main/.env*)",
+      "Bash(npm install:*)",
+      "Bash(xcode-select:*)",
+      "Bash(node:*)",
+      "Bash(ls:*)",
+      "Bash(pkill -f \"vite dev\")",
+      "Bash(chmod:*)",
+      "Bash(ssh:*)",
+      "Bash(tar --exclude='.git' --exclude='node_modules' --exclude='data' --exclude='media' --exclude='.svelte-kit' -czf /tmp/clip-learner.tar.gz .)",
+      "Bash(scp -i /Users/meizu/Downloads/my.pem /tmp/clip-learner.tar.gz ubuntu@43.134.87.27:/home/ubuntu/)"
+    ]
+  }
+}

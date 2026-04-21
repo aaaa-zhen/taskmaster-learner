@@ -1,0 +1,137 @@
+import type { Handle } from '@sveltejs/kit';
+import fs from 'fs';
+import path from 'path';
+import { query } from '$lib/server/db';
+
+export const handle: Handle = async ({ event, resolve }) => {
+	// Session validation
+	event.locals.user = null;
+	const sessionId = event.cookies.get('clip_session');
+
+	if (sessionId) {
+		try {
+			const { rows } = await query(
+				`SELECT u.id, u.username FROM sessions s
+				 JOIN users u ON u.id = s.user_id
+				 WHERE s.id = $1 AND s.expires_at > datetime('now')`,
+				[sessionId]
+			);
+			if (rows.length > 0) {
+				event.locals.user = { id: rows[0].id as number, username: rows[0].username as string };
+			} else {
+				// Session expired or invalid — clear cookie
+				event.cookies.delete('clip_session', { path: '/' });
+			}
+		} catch {
+			event.cookies.delete('clip_session', { path: '/' });
+		}
+	}
+
+	const currentPath = event.url.pathname;
+	const protectedApiRoutes = [
+		'/api/debug',
+		'/api/download',
+		'/api/explain',
+		'/api/logout',
+		'/api/notebook',
+		'/api/process',
+		'/api/quiz',
+		'/api/settings',
+		'/api/stats'
+	];
+	const protectedPagePrefixes = ['/episode/', '/notebook'];
+	const isProtectedApi = protectedApiRoutes.some((route) => currentPath.startsWith(route));
+	const isProtectedPage = protectedPagePrefixes.some((prefix) => currentPath.startsWith(prefix));
+
+	if (isProtectedApi && !event.locals.user) {
+		return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+			status: 401,
+			headers: { 'Content-Type': 'application/json' }
+		});
+	}
+
+	if (isProtectedPage && !event.locals.user) {
+		return Response.redirect(new URL('/', event.url), 303);
+	}
+
+	// Serve media files (downloaded videos) only for the owning user
+	if (currentPath.startsWith('/media/')) {
+		if (!event.locals.user) {
+			return new Response('Unauthorized', { status: 401 });
+		}
+
+		const [, , episodeId] = currentPath.split('/');
+		if (!episodeId) {
+			return new Response('Not found', { status: 404 });
+		}
+
+		const { rows: [episode] } = await query(
+			'SELECT id FROM episodes WHERE id = $1 AND user_id = $2',
+			[episodeId, event.locals.user.id]
+		);
+		if (!episode) {
+			return new Response('Not found', { status: 404 });
+		}
+
+		const filePath = path.join(process.cwd(), currentPath);
+		const resolved = path.resolve(filePath);
+		const episodeMediaRoot = path.resolve(process.cwd(), 'media', episodeId);
+		const insideEpisodeRoot =
+			resolved === episodeMediaRoot || resolved.startsWith(`${episodeMediaRoot}${path.sep}`);
+		if (!insideEpisodeRoot) {
+			return new Response('Forbidden', { status: 403 });
+		}
+
+		if (fs.existsSync(filePath)) {
+			const stat = fs.statSync(filePath);
+			const ext = path.extname(filePath).toLowerCase();
+
+			const mimeTypes: Record<string, string> = {
+				'.mp4': 'video/mp4',
+				'.webm': 'video/webm',
+				'.srt': 'text/plain',
+				'.vtt': 'text/vtt'
+			};
+
+			const contentType = mimeTypes[ext] || 'application/octet-stream';
+			const range = event.request.headers.get('range');
+
+			if (range && ext === '.mp4') {
+				const parts = range.replace(/bytes=/, '').split('-');
+				const start = parseInt(parts[0], 10);
+				const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+				const chunkSize = end - start + 1;
+
+				const stream = fs.createReadStream(filePath, { start, end });
+				const readable = new ReadableStream({
+					start(controller) {
+						stream.on('data', (chunk) => controller.enqueue(chunk));
+						stream.on('end', () => controller.close());
+						stream.on('error', (err) => controller.error(err));
+					}
+				});
+
+				return new Response(readable, {
+					status: 206,
+					headers: {
+						'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+						'Accept-Ranges': 'bytes',
+						'Content-Length': String(chunkSize),
+						'Content-Type': contentType
+					}
+				});
+			}
+
+			const buffer = fs.readFileSync(filePath);
+			return new Response(buffer, {
+				headers: {
+					'Content-Type': contentType,
+					'Content-Length': String(stat.size),
+					'Accept-Ranges': 'bytes'
+				}
+			});
+		}
+	}
+
+	return resolve(event);
+};
