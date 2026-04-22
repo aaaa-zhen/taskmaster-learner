@@ -920,20 +920,28 @@
 			padding: 0 16px 60px;
 		}
 		.topnav {
-			margin-bottom: 48px;
+			margin-bottom: 0;
+		}
+		.nav-right { gap: 4px; }
+		.nav-link { padding: 6px 10px; font-size: 11px; }
+		.nav-badge { min-width: 16px; height: 16px; font-size: 9px; }
+		.theme-toggle { width: 30px; height: 30px; }
+		.user-chip { padding: 6px 10px; font-size: 11px; }
+		.hero {
+			margin-top: 48px;
 		}
 		.hero h1 {
-			font-size: 34px;
+			font-size: 32px;
 		}
 		.lede {
-			font-size: 15px;
+			font-size: 14px;
 		}
 		.features {
-			flex-direction: column;
-			gap: 16px;
+			display: none;
 		}
 		.clip {
 			grid-template-columns: 28px 1fr;
+			padding: 12px 14px;
 		}
 		.clip-actions {
 			grid-column: 2;
