@@ -8,6 +8,7 @@
 	let authTab = $state<'login' | 'signup'>('login');
 	let authError = $state('');
 	let authLoading = $state(false);
+	let authSuccess = $state('');
 
 	// Flash message when the session expired mid-use. Fades after 5s
 	// and also cleans `?signed_out=1` out of the URL so a reload doesn't
@@ -48,8 +49,11 @@
 			} else {
 				if (authTab === 'signup') {
 					localStorage.setItem('clip-just-signed-up', '1');
+					authSuccess = 'Account created! Logging you in…';
+				} else {
+					authSuccess = 'Welcome back!';
 				}
-				window.location.reload();
+				setTimeout(() => window.location.reload(), 800);
 			}
 		} catch {
 			authError = 'Network error. Please try again.';
@@ -94,23 +98,27 @@
 				<button class="auth-tab" class:active={authTab === 'signup'} onclick={() => { authTab = 'signup'; authError = ''; }}>Sign up</button>
 			</div>
 
-			{#if authError}
-				<p class="auth-error">{authError}</p>
-			{/if}
+			{#if authSuccess}
+				<p class="auth-success">{authSuccess}</p>
+			{:else}
+				{#if authError}
+					<p class="auth-error">{authError}</p>
+				{/if}
 
-			<form onsubmit={handleAuth}>
-				<label class="auth-label">
-					Username
-					<input class="auth-input" type="text" name="username" required minlength={authTab === 'signup' ? 3 : 1} autocomplete="username" />
-				</label>
-				<label class="auth-label">
-					Password
-					<input class="auth-input" type="password" name="password" required minlength={authTab === 'signup' ? 8 : 1} autocomplete={authTab === 'login' ? 'current-password' : 'new-password'} />
-				</label>
-				<button class="auth-btn" type="submit" disabled={authLoading}>
-					{authLoading ? '…' : authTab === 'login' ? 'Log in' : 'Create account'}
-				</button>
-			</form>
+				<form onsubmit={handleAuth}>
+					<label class="auth-label">
+						Username
+						<input class="auth-input" type="text" name="username" required minlength={authTab === 'signup' ? 3 : 1} autocomplete="username" />
+					</label>
+					<label class="auth-label">
+						Password
+						<input class="auth-input" type="password" name="password" required minlength={authTab === 'signup' ? 8 : 1} autocomplete={authTab === 'login' ? 'current-password' : 'new-password'} />
+					</label>
+					<button class="auth-btn" type="submit" disabled={authLoading}>
+						{authLoading ? '…' : authTab === 'login' ? 'Log in' : 'Create account'}
+					</button>
+				</form>
+			{/if}
 		</div>
 	</div>
 {/if}
@@ -184,6 +192,18 @@
 		background: var(--bg-card);
 		color: var(--text);
 		box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+	}
+
+	.auth-success {
+		background: color-mix(in srgb, var(--green) 10%, var(--bg-card));
+		border: 1px solid color-mix(in srgb, var(--green) 30%, var(--border));
+		color: var(--green);
+		border-radius: var(--radius-sm);
+		padding: 12px 16px;
+		font-size: 14px;
+		font-weight: 500;
+		text-align: center;
+		margin-top: 8px;
 	}
 
 	.auth-error {
