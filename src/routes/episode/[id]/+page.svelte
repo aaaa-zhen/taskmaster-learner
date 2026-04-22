@@ -424,6 +424,25 @@
 		}
 	}
 
+	const pipelineSteps = [
+		{ key: 'fetching_audio', label: 'Audio', icon: '🎵' },
+		{ key: 'transcribing', label: 'Transcribe', icon: '📝' },
+		{ key: 'analyzing', label: 'Analyze', icon: '🧠' }
+	] as const;
+
+	const currentStepIndex = $derived.by(() => {
+		const s = progressStage || episodeStatus;
+		if (s === 'fetching_audio' || s === 'downloading') return 0;
+		if (s === 'transcribing') return 1;
+		if (s === 'analyzing') return 2;
+		return 0; // queued/pending
+	});
+
+	const progressPercent = $derived.by(() => {
+		if (!progressEstimate || progressEstimate <= 0) return 0;
+		return Math.min(95, Math.round((progressElapsed / progressEstimate) * 100));
+	});
+
 	async function retryEpisode() {
 		if (retryPending) return;
 		retryPending = true;
@@ -690,31 +709,57 @@
 						</div>
 					{:else}
 						<div class="processing-panel">
-							<div class="processing-spinner" aria-hidden="true"></div>
-							<div class="processing-kicker">{stageLabel(progressStage, episodeStatus)}</div>
-							<div class="processing-meta">
-								<span class="processing-meta-item">
-									<span class="processing-meta-label">Elapsed</span>
-									<strong>{formatDuration(progressElapsed)}</strong>
-								</span>
-								{#if progressEstimate}
-									<span class="processing-meta-dot">·</span>
-									<span class="processing-meta-item">
-										<span class="processing-meta-label">Estimated total</span>
-										<strong>~{formatDuration(progressEstimate)}</strong>
-									</span>
-								{/if}
+							<div class="proc-header">
+								<div class="proc-stage-label">{stageLabel(progressStage, episodeStatus)}</div>
 								{#if videoDurationSec}
-									<span class="processing-meta-dot">·</span>
-									<span class="processing-meta-item">
-										<span class="processing-meta-label">Video length</span>
-										<strong>{formatDuration(videoDurationSec)}</strong>
-									</span>
+									<span class="proc-video-len">{formatDuration(videoDurationSec)} video</span>
 								{/if}
 							</div>
-							<p class="processing-sub">
-								This runs in the background. You can leave this tab — we'll be here
-								when you come back.
+
+							<div class="proc-steps">
+								{#each pipelineSteps as step, i}
+									<div
+										class="proc-step"
+										class:done={i < currentStepIndex}
+										class:active={i === currentStepIndex}
+										class:pending={i > currentStepIndex}
+									>
+										<div class="proc-step-icon">
+											{#if i < currentStepIndex}
+												<svg viewBox="0 0 16 16" fill="none" class="proc-check"><path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+											{:else if i === currentStepIndex}
+												<div class="proc-step-pulse"></div>
+											{:else}
+												<div class="proc-step-dot"></div>
+											{/if}
+										</div>
+										<span class="proc-step-text">{step.label}</span>
+									</div>
+									{#if i < pipelineSteps.length - 1}
+										<div class="proc-connector" class:filled={i < currentStepIndex}></div>
+									{/if}
+								{/each}
+							</div>
+
+							<div class="proc-bar-track">
+								<div class="proc-bar-fill" style="width: {progressPercent}%"></div>
+							</div>
+
+							<div class="proc-stats">
+								<div class="proc-stat">
+									<span class="proc-stat-val">{formatDuration(progressElapsed)}</span>
+									<span class="proc-stat-key">elapsed</span>
+								</div>
+								{#if progressEstimate}
+									<div class="proc-stat">
+										<span class="proc-stat-val">~{formatDuration(progressEstimate)}</span>
+										<span class="proc-stat-key">estimated</span>
+									</div>
+								{/if}
+							</div>
+
+							<p class="proc-hint">
+								Runs in the background — feel free to leave this tab.
 							</p>
 						</div>
 					{/if}
@@ -1085,18 +1130,10 @@
 		justify-content: center;
 		text-align: center;
 		padding: 28px 32px;
-		gap: 16px;
+		gap: 20px;
 	}
 	.processing-panel.error {
 		background: color-mix(in srgb, var(--red) 6%, var(--bg-card));
-	}
-	.processing-spinner {
-		width: 36px;
-		height: 36px;
-		border-radius: 50%;
-		border: 3px solid var(--border);
-		border-top-color: var(--accent);
-		animation: spin 0.85s linear infinite;
 	}
 	.processing-kicker {
 		font-size: 12px;
@@ -1115,42 +1152,159 @@
 		color: var(--text);
 		margin: 0;
 	}
-	.processing-meta {
-		display: flex;
-		flex-wrap: wrap;
-		justify-content: center;
-		align-items: baseline;
-		gap: 12px;
-		color: var(--text-light);
-		font-size: 13px;
-	}
-	.processing-meta-item {
-		display: inline-flex;
-		align-items: baseline;
-		gap: 6px;
-	}
-	.processing-meta-label {
-		font-size: 11px;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		color: var(--text-light);
-	}
-	.processing-meta strong {
-		color: var(--text);
-		font-variant-numeric: tabular-nums;
-		font-weight: 600;
-		font-size: 15px;
-	}
-	.processing-meta-dot {
-		color: var(--text-light);
-		opacity: 0.5;
-	}
 	.processing-sub {
 		font-size: 13px;
 		color: var(--text-muted);
 		max-width: 46ch;
 		margin: 0;
 		line-height: 1.6;
+	}
+
+	/* ---- new processing panel styles ---- */
+	.proc-header {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
+	.proc-stage-label {
+		font-size: 13px;
+		font-weight: 600;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--accent);
+	}
+	.proc-video-len {
+		font-size: 11.5px;
+		color: var(--text-muted);
+		padding: 2px 8px;
+		border: 1px solid var(--border);
+		border-radius: 20px;
+		font-variant-numeric: tabular-nums;
+	}
+
+	/* pipeline steps */
+	.proc-steps {
+		display: flex;
+		align-items: center;
+		gap: 0;
+		width: 100%;
+		max-width: 340px;
+	}
+	.proc-step {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 8px;
+		flex-shrink: 0;
+	}
+	.proc-step-icon {
+		width: 32px;
+		height: 32px;
+		border-radius: 50%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border: 2px solid var(--border);
+		background: var(--bg-dark);
+		transition: all 0.3s ease;
+	}
+	.proc-step.done .proc-step-icon {
+		border-color: var(--green);
+		background: color-mix(in srgb, var(--green) 15%, var(--bg-card));
+	}
+	.proc-step.active .proc-step-icon {
+		border-color: var(--accent);
+		background: color-mix(in srgb, var(--accent) 12%, var(--bg-card));
+		box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 10%, transparent);
+	}
+	.proc-check {
+		width: 16px;
+		height: 16px;
+		color: var(--green);
+	}
+	.proc-step-pulse {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background: var(--accent);
+		animation: pulse 1.5s ease-in-out infinite;
+	}
+	@keyframes pulse {
+		0%, 100% { opacity: 1; transform: scale(1); }
+		50% { opacity: 0.5; transform: scale(0.7); }
+	}
+	.proc-step-dot {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: var(--border);
+	}
+	.proc-step-text {
+		font-size: 11px;
+		font-weight: 500;
+		color: var(--text-muted);
+		letter-spacing: 0.02em;
+		transition: color 0.3s;
+	}
+	.proc-step.done .proc-step-text { color: var(--green); }
+	.proc-step.active .proc-step-text { color: var(--accent); font-weight: 600; }
+
+	.proc-connector {
+		flex: 1;
+		height: 2px;
+		background: var(--border);
+		margin: 0 4px;
+		margin-bottom: 24px; /* offset for the label below icon */
+		transition: background 0.3s;
+	}
+	.proc-connector.filled { background: var(--green); }
+
+	/* progress bar */
+	.proc-bar-track {
+		width: 100%;
+		max-width: 340px;
+		height: 4px;
+		background: var(--border);
+		border-radius: 999px;
+		overflow: hidden;
+	}
+	.proc-bar-fill {
+		height: 100%;
+		background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 70%, var(--green)));
+		border-radius: 999px;
+		transition: width 0.6s ease;
+	}
+
+	/* stats */
+	.proc-stats {
+		display: flex;
+		gap: 28px;
+	}
+	.proc-stat {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 2px;
+	}
+	.proc-stat-val {
+		font-size: 20px;
+		font-weight: 700;
+		color: var(--text);
+		font-variant-numeric: tabular-nums;
+		letter-spacing: -0.02em;
+	}
+	.proc-stat-key {
+		font-size: 10.5px;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--text-muted);
+	}
+
+	.proc-hint {
+		font-size: 12.5px;
+		color: var(--text-muted);
+		margin: 0;
+		opacity: 0.7;
 	}
 	.processing-actions {
 		display: flex;
