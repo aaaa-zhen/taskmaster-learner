@@ -177,7 +177,7 @@
 			toastTimer = setTimeout(() => { toastVisible = false; }, 2500);
 			// Notify episode page to increment count + update notebook drawer
 			window.dispatchEvent(new CustomEvent('word:saved', {
-				detail: { word, definition, example: definition, category: 'vocabulary' }
+				detail: { word, definition: entry.definition, example: entry.example, category: 'vocabulary' }
 			}));
 			window.getSelection()?.removeAllRanges();
 		} catch {
