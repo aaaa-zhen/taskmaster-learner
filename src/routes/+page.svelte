@@ -248,6 +248,10 @@
 				<button type="button" class="user-chip" title="Log out {data.user.username}" onclick={handleLogout}>
 					{data.user.username}
 				</button>
+			{:else}
+				<button type="button" class="signin-btn" onclick={() => authModalOpen.set(true)}>
+					Sign in
+				</button>
 			{/if}
 		</div>
 	</nav>
@@ -502,6 +506,20 @@
 		color: var(--red);
 		border-color: color-mix(in srgb, var(--red) 40%, var(--border));
 	}
+
+	.signin-btn {
+		display: inline-flex;
+		align-items: center;
+		padding: 6px 14px;
+		border-radius: var(--radius-sm);
+		background: var(--accent);
+		color: white;
+		font-size: 12.5px;
+		font-weight: 600;
+		cursor: pointer;
+		transition: background 0.15s;
+	}
+	.signin-btn:hover { background: var(--accent-hover); }
 
 	/* Hero */
 	.hero {
