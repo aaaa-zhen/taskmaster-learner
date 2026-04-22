@@ -104,7 +104,7 @@ async function fetchAndAnalyze(
 	_url: string,
 	userId: number
 ): Promise<void> {
-	console.log(`[${episodeId}] ${whisperEngineDescription()}`);
+	console.log(`[${episodeId}] ${await whisperEngineDescription(userId)}`);
 
 	try {
 		setStage(episodeId, 'fetching_audio');
@@ -119,7 +119,7 @@ async function fetchAndAnalyze(
 					});
 				}
 			}
-		});
+		}, userId);
 
 		if (durationSeconds) {
 			await query('UPDATE episodes SET duration = $1 WHERE id = $2 AND user_id = $3', [

@@ -23,18 +23,31 @@ import path from 'node:path';
 // process.env doesn't pick up .env reliably under `vite dev`, so go through
 // this instead.
 import { env } from '$env/dynamic/private';
+import { getSettings } from './claude';
 
 // --- config -------------------------------------------------------------
 
-const WHISPER_API_KEY = env.WHISPER_API_KEY || '';
-const WHISPER_BASE_URL = (env.WHISPER_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
-const WHISPER_MODEL = env.WHISPER_MODEL || 'whisper-1';
+const WHISPER_MODEL = env.WHISPER_MODEL || 'whisper-large-v3-turbo';
 const WHISPER_LOCAL_MODEL = env.WHISPER_LOCAL_MODEL || 'tiny.en';
 const CHUNK_SECONDS = Number(env.WHISPER_CHUNK_SECONDS || 10 * 60);
 const MAX_PARALLEL_CHUNKS = Number(env.WHISPER_MAX_PARALLEL_CHUNKS || 2);
 const MAX_RETRIES = 5;
 
-export const USE_OPENAI_WHISPER = !!WHISPER_API_KEY;
+/** Resolve Whisper API credentials: user settings first, then env vars. */
+async function getWhisperConfig(userId?: number): Promise<{ apiKey: string; baseUrl: string }> {
+	// Try user's own API key (same key they use for LLM)
+	if (userId) {
+		const settings = await getSettings(userId);
+		if (settings.api_key) {
+			const baseUrl = (settings.base_url || 'https://aihubmix.com').replace(/\/+$/, '');
+			return { apiKey: settings.api_key, baseUrl: baseUrl + '/v1' };
+		}
+	}
+	// Fall back to server-side env vars
+	const apiKey = env.WHISPER_API_KEY || '';
+	const baseUrl = (env.WHISPER_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
+	return { apiKey, baseUrl };
+}
 
 // --- types --------------------------------------------------------------
 
@@ -193,7 +206,11 @@ function isRateLimited(resp: Response, bodyText: string): boolean {
 	return /RateLimitReached|rate limit/i.test(bodyText || '');
 }
 
-async function transcribeChunkOpenAI(chunkPath: string): Promise<
+async function transcribeChunkOpenAI(
+	chunkPath: string,
+	apiKey: string,
+	baseUrl: string
+): Promise<
 	Array<{ start: number; end: number; text: string }>
 > {
 	let attempt = 0;
@@ -205,9 +222,9 @@ async function transcribeChunkOpenAI(chunkPath: string): Promise<
 		form.append('response_format', 'verbose_json');
 		form.append('language', 'en');
 
-		const resp = await fetch(`${WHISPER_BASE_URL}/audio/transcriptions`, {
+		const resp = await fetch(`${baseUrl}/audio/transcriptions`, {
 			method: 'POST',
-			headers: { Authorization: `Bearer ${WHISPER_API_KEY}` },
+			headers: { Authorization: `Bearer ${apiKey}` },
 			body: form
 		});
 
@@ -253,7 +270,7 @@ async function runWithLimit<T>(tasks: Array<() => Promise<T>>, limit: number): P
 	return results;
 }
 
-async function transcribeViaOpenAI(audioPath: string, tmpDir: string): Promise<TranscribeResult> {
+async function transcribeViaOpenAI(audioPath: string, tmpDir: string, apiKey: string, baseUrl: string): Promise<TranscribeResult> {
 	const totalDuration = (await ffprobeDuration(audioPath)) ?? 0;
 	const numChunks = Math.max(1, Math.ceil(totalDuration / CHUNK_SECONDS));
 
@@ -267,7 +284,7 @@ async function transcribeViaOpenAI(audioPath: string, tmpDir: string): Promise<T
 	}
 
 	const tasks = chunkSpecs.map((spec) => async () => {
-		const segs = await transcribeChunkOpenAI(spec.path);
+		const segs = await transcribeChunkOpenAI(spec.path, apiKey, baseUrl);
 		return segs.map((s) => ({
 			start: s.start + spec.offsetSec,
 			end: s.end + spec.offsetSec,
@@ -326,7 +343,8 @@ async function transcribeViaLocalWhisper(
  */
 export async function transcribeYouTubeVideo(
 	videoId: string,
-	progress: TranscribeProgress = {}
+	progress: TranscribeProgress = {},
+	userId?: number
 ): Promise<TranscribeResult> {
 	const dir = await mkdtemp(path.join(tmpdir(), `clip-ws-${videoId}-`));
 	const audioPath = path.join(dir, 'audio.mp3');
@@ -338,8 +356,9 @@ export async function transcribeYouTubeVideo(
 		progress.onAudioDownloaded?.(duration);
 
 		progress.onTranscribeStart?.();
-		if (USE_OPENAI_WHISPER) {
-			return await transcribeViaOpenAI(audioPath, dir);
+		const whisperCfg = await getWhisperConfig(userId);
+		if (whisperCfg.apiKey) {
+			return await transcribeViaOpenAI(audioPath, dir, whisperCfg.apiKey, whisperCfg.baseUrl);
 		} else {
 			return await transcribeViaLocalWhisper(audioPath, dir);
 		}
@@ -354,21 +373,18 @@ export async function transcribeYouTubeVideo(
  */
 export function estimateTranscribeSeconds(videoDurationSeconds: number): number {
 	if (!Number.isFinite(videoDurationSeconds) || videoDurationSeconds <= 0) return 60;
-	if (USE_OPENAI_WHISPER) {
-		// Audio download + parallel chunked API calls. Very rough.
-		const chunks = Math.ceil(videoDurationSeconds / CHUNK_SECONDS);
-		const batches = Math.ceil(chunks / MAX_PARALLEL_CHUNKS);
-		const download = Math.max(15, videoDurationSeconds * 0.05);
-		const transcribe = batches * 20; // ~20s per batch incl. upload
-		return Math.round(download + transcribe);
-	}
-	// Local CPU whisper tiny.en ≈ 7x realtime; download ≈ 15% of video length.
-	return Math.round(videoDurationSeconds / 7 + videoDurationSeconds * 0.15);
+	// Audio download + parallel chunked API calls. Very rough.
+	const chunks = Math.ceil(videoDurationSeconds / CHUNK_SECONDS);
+	const batches = Math.ceil(chunks / MAX_PARALLEL_CHUNKS);
+	const download = Math.max(15, videoDurationSeconds * 0.05);
+	const transcribe = batches * 20; // ~20s per batch incl. upload
+	return Math.round(download + transcribe);
 }
 
 /** Human-readable description of the active engine, for status/logs. */
-export function whisperEngineDescription(): string {
-	return USE_OPENAI_WHISPER
-		? `OpenAI-compatible Whisper API (${WHISPER_BASE_URL}, model=${WHISPER_MODEL})`
+export async function whisperEngineDescription(userId?: number): Promise<string> {
+	const cfg = await getWhisperConfig(userId);
+	return cfg.apiKey
+		? `OpenAI-compatible Whisper API (${cfg.baseUrl}, model=${WHISPER_MODEL})`
 		: `local whisper CLI (model=${WHISPER_LOCAL_MODEL})`;
 }

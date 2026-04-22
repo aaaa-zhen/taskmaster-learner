@@ -78,29 +78,17 @@ async function checkEnvironment(): Promise<void> {
 		);
 	}
 
-	// Whisper: either API key or local CLI must be available.
-	if (!env.WHISPER_API_KEY) {
-		const hasLocalWhisper = await binaryExists('whisper');
-		if (!hasLocalWhisper) {
-			console.warn(
-				`[startup] ⚠ No WHISPER_API_KEY set and local \`whisper\` CLI not found. ` +
-					`Transcription will fail. Set WHISPER_API_KEY or install openai-whisper.`
-			);
-		} else {
-			console.log('[startup] Transcription engine: local whisper CLI (slow but free)');
-		}
-	} else {
+	// Whisper + LLM: per-user API keys from Settings. Server env vars are optional fallbacks.
+	if (env.WHISPER_API_KEY) {
 		console.log(
-			`[startup] Transcription engine: ${env.WHISPER_BASE_URL || 'https://api.openai.com/v1'} (${env.WHISPER_MODEL || 'whisper-1'})`
+			`[startup] Whisper fallback: ${env.WHISPER_BASE_URL || 'https://api.openai.com/v1'} (${env.WHISPER_MODEL || 'whisper-large-v3-turbo'})`
 		);
+	} else {
+		console.log('[startup] Whisper: no server-side key — will use per-user API key from Settings');
 	}
 
 	if (!env.ANTHROPIC_API_KEY) {
-		console.warn(
-			`[startup] ℹ No ANTHROPIC_API_KEY set in env. LLM calls will fall back to ` +
-				`per-user DB settings (Settings modal). That's fine for dev; for a fresh ` +
-				`VPS, either set the env var or log in and configure settings.`
-		);
+		console.log('[startup] LLM: no server-side key — will use per-user API key from Settings');
 	}
 }
 

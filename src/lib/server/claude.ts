@@ -10,7 +10,7 @@ const DEFAULTS = {
 	model: 'gpt-5.4-nano'
 };
 
-async function getSettings(userId: number): Promise<typeof DEFAULTS> {
+export async function getSettings(userId: number): Promise<typeof DEFAULTS> {
 	try {
 		const { rows } = await query(
 			'SELECT key, value FROM user_settings WHERE user_id = $1',
@@ -20,14 +20,6 @@ async function getSettings(userId: number): Promise<typeof DEFAULTS> {
 		for (const row of rows) {
 			if (row.key in settings) {
 				(settings as any)[row.key] = row.value;
-			}
-		}
-		if (rows.length === 0) {
-			const { rows: legacyRows } = await query('SELECT key, value FROM app_settings');
-			for (const row of legacyRows) {
-				if (row.key in settings) {
-					(settings as any)[row.key] = row.value;
-				}
 			}
 		}
 		// Fallback to env vars if no DB settings
