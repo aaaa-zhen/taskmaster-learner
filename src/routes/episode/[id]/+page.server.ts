@@ -46,8 +46,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	);
 
 	const { rows: [countRow] } = await query(
-		'SELECT COUNT(*) as n FROM vocab_notebook WHERE user_id = $1',
-		[userId]
+		'SELECT COUNT(*) as n FROM vocab_notebook WHERE episode_id = $1 AND user_id = $2',
+		[params.id, userId]
 	);
 
 	await query("UPDATE episodes SET studied_at = datetime('now') WHERE id = $1 AND user_id = $2", [params.id, userId]);
