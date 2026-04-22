@@ -85,6 +85,12 @@
 		theme = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
 		refreshResumePositions();
 
+		// After first signup, open Settings so the user can configure their API key.
+		if (localStorage.getItem('clip-just-signed-up') && data.user) {
+			localStorage.removeItem('clip-just-signed-up');
+			settingsOpen = true;
+		}
+
 		// Restore a URL the user pasted before being asked to sign in.
 		const pending = localStorage.getItem('clip-pending-url');
 		if (pending && data.user) {

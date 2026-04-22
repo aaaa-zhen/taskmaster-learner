@@ -46,6 +46,9 @@
 			if (data.error) {
 				authError = data.error;
 			} else {
+				if (authTab === 'signup') {
+					localStorage.setItem('clip-just-signed-up', '1');
+				}
 				window.location.reload();
 			}
 		} catch {
