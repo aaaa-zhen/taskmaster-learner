@@ -83,21 +83,9 @@ export async function processEpisode(episodeId: string, subsText: string, userId
 			);
 		}
 
-		// Store vocabulary suggestions
-		for (const vocab of analysis.vocabulary ?? []) {
-			if (!vocab?.word) continue;
-			await query(
-				'INSERT INTO vocab_notebook (word, definition, example, episode_id, category, user_id) VALUES ($1, $2, $3, $4, $5, $6)',
-				[
-					toStr(vocab.word),
-					toStr(vocab.definition),
-					toStr(vocab.example),
-					episodeId,
-					toStr(vocab.category, 'general'),
-					userId
-				]
-			);
-		}
+		// Vocabulary suggestions from the LLM are stored in the analysis
+		// response but NOT auto-inserted into the notebook. Users save
+		// words themselves via the word popup or notebook drawer.
 
 		// Mark as ready
 		await query('UPDATE episodes SET status = $1 WHERE id = $2', ['ready', episodeId]);
