@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Episode } from '$lib/types';
 	import { goto, invalidateAll } from '$app/navigation';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { formatTime } from '$lib/utils/time';
 	import { loadResumePosition } from '$lib/utils/resume';
 	import {
@@ -84,6 +84,16 @@
 	onMount(() => {
 		theme = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
 		refreshResumePositions();
+
+		// Restore a URL the user pasted before being asked to sign in.
+		const pending = localStorage.getItem('clip-pending-url');
+		if (pending && data.user) {
+			localStorage.removeItem('clip-pending-url');
+			url = pending;
+			// Auto-submit after a tick so the UI renders first.
+			tick().then(() => handleSubmit());
+		}
+
 		const handleFocus = () => refreshResumePositions();
 		window.addEventListener('focus', handleFocus);
 		document.addEventListener('visibilitychange', handleFocus);
@@ -103,6 +113,7 @@
 	async function handleSubmit() {
 		if (!url.trim()) return;
 		if (!data.user) {
+			localStorage.setItem('clip-pending-url', url.trim());
 			authModalOpen.set(true);
 			return;
 		}
