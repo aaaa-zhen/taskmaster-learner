@@ -136,10 +136,22 @@
 		wordsSaved = data.wordsSaved ?? 0;
 	});
 
+	let localNotebook = $state<Array<{word: string; definition: string; example?: string; category?: string}>>([]);
+
 	$effect(() => {
-		const inc = () => wordsSaved++;
-		window.addEventListener('word:saved', inc);
-		return () => window.removeEventListener('word:saved', inc);
+		localNotebook = data.notebookEntries ? [...data.notebookEntries] : [];
+	});
+
+	$effect(() => {
+		const onSaved = (e: Event) => {
+			wordsSaved++;
+			const detail = (e as CustomEvent).detail;
+			if (detail?.word) {
+				localNotebook = [{ word: detail.word, definition: detail.definition, example: detail.example, category: detail.category }, ...localNotebook];
+			}
+		};
+		window.addEventListener('word:saved', onSaved);
+		return () => window.removeEventListener('word:saved', onSaved);
 	});
 
 	const backdropVisible = $derived(notebookOpen || quizOpen || lineHelpOpen);
@@ -801,10 +813,10 @@
 		</div>
 	</div>
 	<div class="drawer-body">
-		{#if !data.notebookEntries?.length}
+		{#if !localNotebook.length}
 			<div class="drawer-empty"><p>Save words while studying to see them here.</p></div>
 		{:else}
-			{#each data.notebookEntries as entry}
+			{#each localNotebook as entry}
 				<div class="nb-entry">
 					<div class="nb-entry-head">
 						<strong class="nb-word">{entry.word}</strong>

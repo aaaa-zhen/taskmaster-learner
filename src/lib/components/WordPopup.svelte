@@ -175,8 +175,10 @@
 			toastVisible = true;
 			if (toastTimer) clearTimeout(toastTimer);
 			toastTimer = setTimeout(() => { toastVisible = false; }, 2500);
-			// Notify header to increment count
-			window.dispatchEvent(new CustomEvent('word:saved'));
+			// Notify episode page to increment count + update notebook drawer
+			window.dispatchEvent(new CustomEvent('word:saved', {
+				detail: { word, definition, example: definition, category: 'vocabulary' }
+			}));
 			window.getSelection()?.removeAllRanges();
 		} catch {
 			console.error('Failed to save');
