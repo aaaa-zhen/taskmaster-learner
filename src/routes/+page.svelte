@@ -48,7 +48,9 @@
 		const nextPositions: Record<string, number> = {};
 		for (const episode of episodes) {
 			if (episode.status !== 'ready') continue;
-			const saved = loadResumePosition(episode.id);
+			// Players save with video_id (YouTube ID), not episode.id (UUID)
+			const key = episode.video_id || episode.id;
+			const saved = loadResumePosition(key);
 			if (saved && saved > 5) {
 				nextPositions[episode.id] = saved;
 			}
