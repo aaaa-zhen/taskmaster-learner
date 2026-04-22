@@ -25,6 +25,13 @@
 	let theme = $state<'light' | 'dark'>('light');
 	let settingsOpen = $state(false);
 
+	async function handleLogout() {
+		try {
+			await fetch('/api/logout', { method: 'POST' });
+		} catch {}
+		window.location.href = '/';
+	}
+
 	$effect(() => {
 		episodes = data.episodes;
 		clipsStudied = data.clipsStudied;
@@ -217,11 +224,9 @@
 				{/if}
 			</button>
 			{#if data.user}
-				<form method="POST" action="/api/logout" style="display:contents">
-					<button type="submit" class="user-chip" title="Log out {data.user.username}">
-						{data.user.username}
-					</button>
-				</form>
+				<button type="button" class="user-chip" title="Log out {data.user.username}" onclick={handleLogout}>
+					{data.user.username}
+				</button>
 			{/if}
 		</div>
 	</nav>
