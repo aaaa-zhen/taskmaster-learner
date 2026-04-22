@@ -7,7 +7,7 @@
 	import {
 		MoonStar, SunMedium, Youtube, ArrowRight, PlayCircle,
 		Clock, CheckCircle2, Loader2, AlertCircle, Trash2,
-		BookMarked, Plus, Clapperboard, RotateCcw, Settings
+		BookMarked, Plus, Clapperboard, RotateCcw, Settings, LogOut
 	} from 'lucide-svelte';
 	import SettingsModal from '$lib/components/SettingsModal.svelte';
 	import { authModalOpen } from '$lib/stores/auth';
@@ -247,8 +247,9 @@
 				{/if}
 			</button>
 			{#if data.user}
-				<button type="button" class="user-chip" title="Log out {data.user.username}" onclick={handleLogout}>
+				<button type="button" class="user-chip" title="Log out" onclick={handleLogout}>
 					{data.user.username}
+					<LogOut size={12} aria-hidden="true" />
 				</button>
 			{:else}
 				<button type="button" class="signin-btn" onclick={() => authModalOpen.set(true)}>
@@ -262,6 +263,21 @@
 	<div class="hero">
 		<h1>Keep watching.<br><em>We'll handle the words.</em></h1>
 		<p class="lede">Paste a YouTube link — tap any word to get an instant explanation, without pausing your brain.</p>
+
+		<div class="features">
+			<div class="feature">
+				<span class="feature-icon">🎧</span>
+				<div><strong>Auto-transcribe</strong><span class="feature-desc">AI transcribes any YouTube video in seconds</span></div>
+			</div>
+			<div class="feature">
+				<span class="feature-icon">📖</span>
+				<div><strong>Tap to learn</strong><span class="feature-desc">Click any word for instant definition + examples</span></div>
+			</div>
+			<div class="feature">
+				<span class="feature-icon">🧠</span>
+				<div><strong>Adaptive quiz</strong><span class="feature-desc">Test yourself with AI-generated questions</span></div>
+			</div>
+		</div>
 
 		<form class="input-box" onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
 			<label class="sr-only" for="youtube-url">YouTube URL</label>
@@ -507,6 +523,37 @@
 	.user-chip:hover {
 		color: var(--red);
 		border-color: color-mix(in srgb, var(--red) 40%, var(--border));
+	}
+
+	.features {
+		display: flex;
+		gap: 24px;
+		margin-top: 32px;
+		margin-bottom: 8px;
+	}
+	.feature {
+		display: flex;
+		align-items: flex-start;
+		gap: 10px;
+		font-size: 13.5px;
+		color: var(--text);
+	}
+	.feature-icon {
+		font-size: 18px;
+		flex-shrink: 0;
+		margin-top: 1px;
+	}
+	.feature strong {
+		display: block;
+		font-weight: 600;
+		font-size: 13.5px;
+		margin-bottom: 2px;
+	}
+	.feature-desc {
+		display: block;
+		font-size: 12.5px;
+		color: var(--text-muted);
+		line-height: 1.4;
 	}
 
 	.signin-btn {
@@ -862,6 +909,10 @@
 		}
 		.lede {
 			font-size: 15px;
+		}
+		.features {
+			flex-direction: column;
+			gap: 16px;
 		}
 		.clip {
 			grid-template-columns: 28px 1fr;
