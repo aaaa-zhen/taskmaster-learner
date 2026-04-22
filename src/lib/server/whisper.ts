@@ -97,8 +97,11 @@ function cuesToSrt(cues: Array<{ start: number; end: number; text: string }>): s
 
 // --- audio download (yt-dlp) -------------------------------------------
 
+/** Path to a Netscape-format cookies.txt file for yt-dlp. */
+const YTDLP_COOKIES = env.YTDLP_COOKIES || path.join(process.cwd(), 'cookies.txt');
+
 async function downloadAudioMp3(videoId: string, outPath: string): Promise<void> {
-	await spawnCapture('yt-dlp', [
+	const args = [
 		'-f',
 		'bestaudio[ext=m4a]/bestaudio',
 		'-x',
@@ -107,7 +110,17 @@ async function downloadAudioMp3(videoId: string, outPath: string): Promise<void>
 		'-o',
 		outPath,
 		`https://www.youtube.com/watch?v=${videoId}`
-	]);
+	];
+
+	// If a cookies file exists, pass it to yt-dlp to bypass YouTube bot detection.
+	try {
+		await stat(YTDLP_COOKIES);
+		args.unshift('--cookies', YTDLP_COOKIES);
+	} catch {
+		// No cookies file — proceed without
+	}
+
+	await spawnCapture('yt-dlp', args);
 }
 
 async function ffprobeDuration(filePath: string): Promise<number | null> {
