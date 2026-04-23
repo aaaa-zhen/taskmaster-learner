@@ -225,6 +225,30 @@ function lookupCacheKey(userId: number, word: string, context?: WordLookupContex
 	return [userId, word.toLowerCase().trim(), context?.currentLine || ''].join('\u0001');
 }
 
+async function tryFreeDictionary(word: string): Promise<WordEntry | null> {
+	if (word.trim().split(/\s+/).length > 2) return null; // phrases → LLM
+	try {
+		const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word.trim().toLowerCase())}`, { signal: AbortSignal.timeout(2000) });
+		if (!res.ok) return null;
+		const data = await res.json();
+		const entry = data?.[0];
+		if (!entry) return null;
+		const phonetic = entry.phonetics?.find((p: any) => p.text)?.text || '';
+		const meaning = entry.meanings?.[0];
+		const partOfSpeech = meaning?.partOfSpeech || '';
+		const def = meaning?.definitions?.[0];
+		return {
+			phonetic: phonetic ? `${phonetic}` : '',
+			partOfSpeech,
+			definition: def?.definition || '',
+			example: def?.example || '',
+			note: ''
+		};
+	} catch {
+		return null;
+	}
+}
+
 export async function lookupWord(
 	word: string,
 	userId: number,
@@ -237,6 +261,18 @@ export async function lookupWord(
 		return cached.value;
 	}
 
+	// Try free dictionary API first (instant, <200ms)
+	const dictResult = await tryFreeDictionary(word);
+	if (dictResult && dictResult.definition) {
+		if (lookupCache.size >= LOOKUP_CACHE_MAX) {
+			const firstKey = lookupCache.keys().next().value;
+			if (firstKey) lookupCache.delete(firstKey);
+		}
+		lookupCache.set(cacheKey, { value: dictResult, expiresAt: Date.now() + LOOKUP_TTL_MS });
+		return dictResult;
+	}
+
+	// Fall back to LLM for phrases, slang, or when dictionary has no result
 	const extraContext = [
 		context?.episodeTitle ? `Episode title: ${context.episodeTitle}` : '',
 		context?.source ? `Source: ${context.source}` : '',
@@ -428,28 +464,36 @@ ${transcript}
 LEARNER'S SAVED WORDS FROM THIS VIDEO:
 ${vocabList || '(none yet)'}
 
-Task: generate exactly 3 multiple-choice questions to measure how well the learner understood this clip. ${savedWordsInstruction}
+Task: generate exactly 5 multiple-choice questions to deeply test the learner's understanding of this clip. ${savedWordsInstruction}
 
-Aim for variety across these categories: "vocab", "comprehension", "idiom", "nuance". Pick whichever 3 fit the transcript best.
+Question types to include (pick the best mix for this transcript):
+1. VOCABULARY — "What does X mean in this context?"
+2. COMPREHENSION — "According to the speaker, what/why/how...?"
+3. INFERENCE — "What can we infer from the speaker's statement about...?"
+4. TONE/INTENT — "The speaker's tone when saying X suggests..."
+5. IDIOM/SLANG — "The expression X is used here to mean..."
+6. PARAPHRASE — "Which sentence best restates what the speaker said?"
 
 Rules:
-- Each question has exactly 4 options, only 1 correct
-- Questions must be answerable from the transcript or saved-words list
-- Keep wording clear and concise
+- Exactly 5 questions, each with 4 options, only 1 correct
+- At least 1 comprehension, 1 vocab, and 1 inference/tone question
+- Make wrong options plausible — avoid obviously absurd answers
+- Questions should require actually understanding the content, not just keyword matching
 - "correct" is the 0-based index of the right answer
-- "category" is one lowercase word from {vocab, comprehension, idiom, nuance, slang, tone}
-- Include "sourceWord" only when the question is about a specific saved word
+- "category" is one lowercase word from {vocab, comprehension, inference, idiom, nuance, slang, tone, paraphrase}
+- Include "context" (a short quote from the transcript) when relevant
+- Include "sourceWord" only when testing a specific saved word
 
-Reply with JSON only, an array of 3 objects:
+Reply with JSON only, an array of 5 objects:
 [
   {"type":"Vocabulary","category":"vocab","question":"...","options":["A","B","C","D"],"correct":0,"context":"optional quote","sourceWord":"takeout"}
 ]`,
-		900,
+		1400,
 		userId
 	);
 
 	const parsed = extractJson(text);
-	return ensureQuestions(parsed).slice(0, 3);
+	return ensureQuestions(parsed).slice(0, 5);
 }
 
 /**
@@ -491,8 +535,8 @@ export async function generateAdaptiveQuiz(
 		)
 	];
 	const strategy = wrongCategories.length
-		? `The learner struggled with: ${wrongCategories.join(', ')}. Generate 2 new questions that drill these categories with different angles — don't just repeat the same question.`
-		: `The learner got everything right. Generate 2 harder questions in the same topic areas — subtle nuance, double-meaning, or tricky idioms.`;
+		? `The learner struggled with: ${wrongCategories.join(', ')}. Generate 3 new questions that drill these weak areas from different angles. Make them progressively harder — test deeper understanding, not surface recall.`
+		: `The learner got everything right. Generate 3 significantly harder questions: test subtle inference, speaker intent, implicit meaning, or cultural context that requires careful listening.`;
 
 	const text = await chat(
 		`You are a language tutor running a short adaptive quiz.
@@ -509,18 +553,19 @@ ${review}
 ${strategy}
 
 Rules:
-- Exactly 2 new questions (never repeat a prior question)
-- Each has 4 options, 1 correct
+- Exactly 3 new questions (never repeat a prior question)
+- Each has 4 options, 1 correct — make wrong options plausible
+- Go deeper than the initial round: test inference, speaker intent, implicit meaning
 - Use the same JSON schema: {type, category, question, options, correct, context?, sourceWord?}
-- category is lowercase one word from {vocab, comprehension, idiom, nuance, slang, tone}
+- category is lowercase one word from {vocab, comprehension, inference, idiom, nuance, slang, tone, paraphrase}
 
-Reply with JSON only, an array of 2 objects.`,
-		700,
+Reply with JSON only, an array of 3 objects.`,
+		1000,
 		userId
 	);
 
 	const parsed = extractJson(text);
-	return ensureQuestions(parsed).slice(0, 2);
+	return ensureQuestions(parsed).slice(0, 3);
 }
 
 /**

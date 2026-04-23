@@ -642,7 +642,7 @@
 	const quizProgress = $derived.by(() => {
 		if (quizPhase === 'diagnosed') return 100;
 		// Assume a target of 5 questions across both batches.
-		const target = 5;
+		const target = 8;
 		const completed = answerRecords.length;
 		return Math.min(100, (completed / target) * 100);
 	});
