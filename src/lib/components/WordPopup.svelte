@@ -196,6 +196,13 @@
 		}
 	}
 
+	// Close popup when video starts playing (e.g. spacebar press)
+	$effect(() => {
+		if ($isPlaying && visible) {
+			dismiss();
+		}
+	});
+
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') dismiss();
 	}
