@@ -1,7 +1,9 @@
 <script lang="ts">
 	import YouTubePlayer from '$lib/components/YouTubePlayer.svelte';
 	import VideoPlayer from '$lib/components/VideoPlayer.svelte';
-		import WordPopup from '$lib/components/WordPopup.svelte';
+	import WordPopup from '$lib/components/WordPopup.svelte';
+	import Transcript from '$lib/components/Transcript.svelte';
+	import AnalysisPanel from '$lib/components/AnalysisPanel.svelte';
 
 	import { invalidateAll } from '$app/navigation';
 	import { onDestroy, onMount, tick } from 'svelte';
@@ -41,6 +43,14 @@
 	);
 	const isErrored = $derived(episodeStatus === 'error');
 	const isReady = $derived(episodeStatus === 'ready');
+
+	// Analysis panel state
+	let analysisTab = $state<'explanation' | 'scenes' | 'vocab'>('explanation');
+	let focusSegmentId = $state<number | null>(null);
+	let mobilePanel = $state<'transcript' | 'helper'>('transcript');
+
+	// Study mode: 'listening' shows only paused line, 'transcript' shows full panels
+	let studyMode = $state<'listening' | 'transcript'>('listening');
 
 	// Overlay state
 	let notebookOpen = $state(false);
@@ -591,6 +601,10 @@
 
 	function handleExplain(segmentId: number) {
 		const seg = data.segments.find((s: any) => s.id === segmentId);
+		// Update analysis panel to show this segment's explanation
+		focusSegmentId = segmentId;
+		analysisTab = 'explanation';
+		mobilePanel = 'helper';
 		openLineHelp(segmentId, seg?.text || '', seg ? formatTime(seg.start_time) : '');
 	}
 
@@ -777,13 +791,71 @@
 					{/if}
 			</div>
 
-				<div class="paused-slot">
-					{#if isReady && pausedSegment}
-						<div class="paused-line transcript">
-							<p class="paused-text">{pausedSegment.text}</p>
+				{#if isReady && data.segments.length > 0}
+					<!-- Mode toggle -->
+					<div class="mode-bar">
+						<div class="mode-toggle">
+							<button class="mode-btn" class:active={studyMode === 'listening'} onclick={() => studyMode = 'listening'}>
+								Listening
+							</button>
+							<button class="mode-btn" class:active={studyMode === 'transcript'} onclick={() => studyMode = 'transcript'}>
+								Transcript
+							</button>
+						</div>
+					</div>
+
+					{#if studyMode === 'listening'}
+						<div class="paused-slot">
+							{#if pausedSegment}
+								<div class="paused-line transcript">
+									<p class="paused-text">{pausedSegment.text}</p>
+								</div>
+							{/if}
+						</div>
+					{:else}
+						<!-- Mobile tab switcher -->
+						<div class="panel-tabs-mobile">
+							<button class="panel-tab" class:active={mobilePanel === 'transcript'} onclick={() => mobilePanel = 'transcript'}>
+								Transcript
+							</button>
+							<button class="panel-tab" class:active={mobilePanel === 'helper'} onclick={() => mobilePanel = 'helper'}>
+								Helper
+							</button>
+						</div>
+
+						<div class="study-panels" class:show-helper={mobilePanel === 'helper'}>
+							<div class="panel-transcript">
+								<Transcript
+									segments={data.segments}
+									annotations={data.annotations}
+									onseek={handleSeek}
+									onexplain={handleExplain}
+								/>
+							</div>
+							<div class="panel-helper">
+								<AnalysisPanel
+									scenes={data.scenes}
+									segments={data.segments}
+									annotations={data.annotations}
+									vocabulary={data.vocabulary}
+									{explanation}
+									{loadingExplanation}
+									{focusSegmentId}
+									bind:activeTab={analysisTab}
+									onsaveWord={saveWord}
+								/>
+							</div>
 						</div>
 					{/if}
-				</div>
+				{:else if isReady}
+					<div class="paused-slot">
+						{#if pausedSegment}
+							<div class="paused-line transcript">
+								<p class="paused-text">{pausedSegment.text}</p>
+							</div>
+						{/if}
+					</div>
+				{/if}
 
 		</div>
 	</div>
@@ -1093,11 +1165,6 @@
 		background: var(--bg);
 		display: flex;
 		flex-direction: column;
-		/* Vertically center the content when it's shorter than the viewport —
-		 * turns the dead space below the video into symmetric padding above
-		 * and below. On small screens there's not enough room to center so
-		 * this naturally falls back to top-aligned. */
-		justify-content: center;
 	}
 
 	/* Centered single-column layout that scales fluidly across screen
@@ -1110,10 +1177,10 @@
 		width: 100%;
 		max-width: clamp(600px, 78vw, 1280px);
 		margin: 0 auto;
-		padding: clamp(16px, 2.4vw, 32px) clamp(16px, 3vw, 32px) clamp(24px, 3vw, 48px);
+		padding: clamp(12px, 1.5vw, 20px) clamp(16px, 3vw, 32px) clamp(24px, 3vw, 48px);
 		display: flex;
 		flex-direction: column;
-		gap: clamp(12px, 1.5vw, 20px);
+		gap: clamp(8px, 1vw, 14px);
 	}
 
 	/* Below 600px the clamp() min would force overflow, so drop back to
@@ -1128,6 +1195,7 @@
 		border-radius: var(--radius-sm);
 		overflow: hidden;
 		border: 1px solid var(--border);
+		flex-shrink: 0;
 	}
 	.video-shell :global(video),
 	.video-shell :global(iframe) { width: 100%; display: block; }
@@ -1365,6 +1433,103 @@
 		from { opacity: 0; transform: translateY(-4px); }
 		to   { opacity: 1; transform: translateY(0); }
 	}
+	/* Mode toggle */
+	.mode-bar {
+		display: flex;
+		justify-content: center;
+	}
+	.mode-toggle {
+		display: inline-flex;
+		padding: 3px;
+		border-radius: var(--radius-pill);
+		border: 1px solid var(--border);
+		background: var(--bg-dark);
+	}
+	.mode-btn {
+		padding: 6px 18px;
+		border-radius: var(--radius-pill);
+		border: none;
+		background: transparent;
+		font-family: inherit;
+		font-size: 12px;
+		font-weight: 500;
+		color: var(--text-muted);
+		cursor: pointer;
+		transition: all 0.15s;
+	}
+	.mode-btn.active {
+		background: var(--bg-card);
+		color: var(--text);
+		box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+	}
+
+	/* Study panels — 2-column layout below video */
+	.panel-tabs-mobile {
+		display: none;
+	}
+	.study-panels {
+		display: grid;
+		grid-template-columns: 1fr 380px;
+		gap: 0;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		overflow: hidden;
+		height: clamp(320px, 45vh, 520px);
+	}
+	.panel-transcript {
+		border-right: 1px solid var(--border);
+		overflow: hidden;
+	}
+	.panel-helper {
+		overflow: hidden;
+	}
+
+	@media (max-width: 900px) {
+		.study-panels {
+			grid-template-columns: 1fr;
+			min-height: 300px;
+		}
+		.panel-tabs-mobile {
+			display: flex;
+			border: 1px solid var(--border);
+			border-radius: var(--radius-sm);
+			padding: 3px;
+			margin-bottom: 8px;
+			background: var(--bg-card);
+		}
+		.panel-tab {
+			flex: 1;
+			padding: 8px;
+			border-radius: calc(var(--radius-sm) - 2px);
+			border: none;
+			background: transparent;
+			font-family: inherit;
+			font-size: 12px;
+			font-weight: 600;
+			color: var(--text-muted);
+			cursor: pointer;
+		}
+		.panel-tab.active {
+			background: var(--bg-dark);
+			color: var(--text);
+		}
+		.panel-transcript {
+			border-right: none;
+		}
+		.study-panels .panel-helper {
+			display: none;
+		}
+		.study-panels .panel-transcript {
+			display: block;
+		}
+		.study-panels.show-helper .panel-helper {
+			display: block;
+		}
+		.study-panels.show-helper .panel-transcript {
+			display: none;
+		}
+	}
+
 	.paused-text {
 		font-size: clamp(17px, 1.5vw, 22px);
 		line-height: 1.6;

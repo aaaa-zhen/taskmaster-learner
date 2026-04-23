@@ -350,7 +350,7 @@
 	.detail-card,
 	.mini-vocab,
 	.vocab-card {
-		background: white;
+		background: var(--bg-card);
 		border: 1px solid var(--border);
 		border-radius: 12px;
 	}
@@ -487,7 +487,7 @@
 	.explanation {
 		line-height: 1.7;
 		font-size: 14px;
-		background: white;
+		background: var(--bg-card);
 		border: 1px solid var(--border);
 		border-radius: 12px;
 		padding: 16px;
@@ -593,7 +593,7 @@
 		height: 28px;
 		border-radius: 50%;
 		border: 1px solid var(--border);
-		background: white;
+		background: var(--bg-card);
 		color: var(--accent);
 		font-size: 18px;
 		line-height: 1;

@@ -7,6 +7,7 @@
 		text,
 		startTime,
 		active = false,
+		dimmed = false,
 		annotations = [],
 		segmentId,
 		onseek,
@@ -15,19 +16,38 @@
 		text: string;
 		startTime: number;
 		active?: boolean;
+		dimmed?: boolean;
 		annotations?: HumorAnnotation[];
 		segmentId: number;
 		onseek?: (time: number) => void;
 		onexplain?: (id: number) => void;
 	} = $props();
 
-	function handleClick() {
+	function handleSeek() {
 		onseek?.(startTime);
 	}
 
 	function handleExplain(e: Event) {
 		e.stopPropagation();
 		onexplain?.(segmentId);
+	}
+
+	function handleWordClick(e: MouseEvent) {
+		const target = e.target as HTMLElement;
+		if (target.classList.contains('word-token')) {
+			// Dispatch a double-click event on the word so WordPopup picks it up
+			const word = target.textContent?.trim();
+			if (word && word.length > 1) {
+				// Select the word so WordPopup's selection handler fires
+				const range = document.createRange();
+				range.selectNodeContents(target);
+				const sel = window.getSelection();
+				sel?.removeAllRanges();
+				sel?.addRange(range);
+				// Fire the dblclick event that WordPopup listens for
+				target.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+			}
+		}
 	}
 
 	function findExcerptInText(text: string, excerpt: string): { start: number; end: number } | null {
@@ -87,19 +107,26 @@
 		return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 	}
 
-	const highlightedHtml = $derived(buildHighlightedText(text, annotations));
+	/** Wrap each word in a clickable span for tap-to-lookup */
+	function tokenize(html: string): string {
+		// Split on word boundaries but preserve HTML tags (marks)
+		return html.replace(/(?<=>|^)([^<]+)(?=<|$)/g, (match) => {
+			return match.replace(/(\S+)/g, '<span class="word-token">$1</span>');
+		});
+	}
+
+	const highlightedHtml = $derived(tokenize(buildHighlightedText(text, annotations)));
 </script>
 
 <div
 	class="line"
 	class:active
-	onclick={handleClick}
-	onkeydown={(e) => e.key === 'Enter' && handleClick()}
-	role="button"
-	tabindex="0"
+	class:dimmed
 >
-	<span class="timestamp">{formatTime(startTime)}</span>
-	<div class="content">
+	<button class="timestamp" onclick={handleSeek} title="Seek to {formatTime(startTime)}">{formatTime(startTime)}</button>
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div class="content" onclick={handleWordClick}>
 		<p class="text">{@html highlightedHtml}</p>
 		{#if annotations.length > 0}
 			<div class="annotations">
@@ -114,8 +141,8 @@
 			</div>
 		{/if}
 	</div>
-	<button class="explain-btn" onclick={handleExplain} title="Why is this funny?">
-		?
+	<button class="explain-btn" onclick={handleExplain} title="Explain this line">
+		Explain
 	</button>
 </div>
 
@@ -124,29 +151,51 @@
 		display: flex;
 		align-items: flex-start;
 		gap: 14px;
-		padding: 20px 18px;
-		cursor: pointer;
+		padding: 16px 18px;
 		transition: background 0.15s, border-color 0.15s;
 		border-left: 2px solid transparent;
 		border-bottom: 1px solid var(--border-light);
 	}
 
 	.line:hover {
-		background: rgba(128,128,128,0.06);
+		background: rgba(128,128,128,0.04);
 	}
 
 	.line.active {
-		background: color-mix(in srgb, var(--accent) 8%, var(--bg-card));
+		background: color-mix(in srgb, var(--accent) 6%, var(--bg-card));
 		border-left-color: var(--accent);
+	}
+	.line.dimmed {
+		opacity: 0.3;
+	}
+	.line.dimmed:hover {
+		opacity: 0.7;
 	}
 
 	.timestamp {
 		color: var(--text-light);
 		font-family: var(--font-ui);
-		font-size: 13px;
+		font-size: 12px;
 		font-variant-numeric: tabular-nums;
-		min-width: 44px;
-		padding-top: 5px;
+		min-width: 40px;
+		padding-top: 4px;
+		cursor: pointer;
+		background: none;
+		border: none;
+		text-align: left;
+		transition: color 0.15s;
+	}
+	.timestamp:hover {
+		color: var(--accent);
+	}
+
+	:global(.word-token) {
+		cursor: pointer;
+		border-radius: 2px;
+		transition: background 0.1s;
+	}
+	:global(.word-token:hover) {
+		background: color-mix(in srgb, var(--accent) 12%, transparent);
 	}
 
 	.content {
@@ -192,20 +241,22 @@
 	}
 
 	.explain-btn {
-		background: var(--bg-dark);
+		background: transparent;
 		color: var(--text-light);
 		border: 1px solid var(--border);
-		border-radius: 50%;
-		width: 28px;
-		height: 28px;
+		border-radius: var(--radius-pill, 999px);
+		padding: 4px 10px;
 		font-family: var(--font-ui);
-		font-size: 14px;
-		font-weight: bold;
+		font-size: 11px;
+		font-weight: 500;
 		cursor: pointer;
-		transition: all 0.2s;
+		transition: all 0.15s;
 		flex-shrink: 0;
+		opacity: 0;
 	}
-
+	.line:hover .explain-btn {
+		opacity: 1;
+	}
 	.explain-btn:hover {
 		background: var(--accent);
 		border-color: var(--accent);

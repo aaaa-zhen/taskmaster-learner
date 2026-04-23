@@ -21,7 +21,11 @@
       "Bash(chmod:*)",
       "Bash(ssh:*)",
       "Bash(tar --exclude='.git' --exclude='node_modules' --exclude='data' --exclude='media' --exclude='.svelte-kit' -czf /tmp/clip-learner.tar.gz .)",
-      "Bash(scp -i /Users/meizu/Downloads/my.pem /tmp/clip-learner.tar.gz ubuntu@43.134.87.27:/home/ubuntu/)"
+      "Bash(scp -i /Users/meizu/Downloads/my.pem /tmp/clip-learner.tar.gz ubuntu@43.134.87.27:/home/ubuntu/)",
+      "Bash(scp:*)",
+      "Bash(git commit:*)",
+      "Bash(confirm you 're not a bot\" errors on VPS IPs.:*)",
+      "Bash(git push:*)"
     ]
   }
 }

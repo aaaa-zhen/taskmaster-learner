@@ -2,7 +2,7 @@
 	import type { Segment, HumorAnnotation } from '$lib/types';
 	import { currentTime } from '$lib/stores/player';
 	import TranscriptLine from './TranscriptLine.svelte';
-	import { tick } from 'svelte';
+	import { tick, onMount } from 'svelte';
 
 	let {
 		segments = [],
@@ -17,6 +17,17 @@
 	} = $props();
 
 	let container: HTMLDivElement | undefined = $state();
+	let showCoachMark = $state(false);
+
+	onMount(() => {
+		if (!localStorage.getItem('clip-coach-seen') && segments.length > 0) {
+			showCoachMark = true;
+			setTimeout(() => {
+				showCoachMark = false;
+				localStorage.setItem('clip-coach-seen', '1');
+			}, 5000);
+		}
+	});
 	let activeIndex = $state(-1);
 	let followPlayback = $state(true);
 	let internalScroll = false;
@@ -67,7 +78,8 @@
 		if (!el) return;
 		internalScroll = true;
 		if (scrollResetTimer) clearTimeout(scrollResetTimer);
-		el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+		// Scroll active line to the top of the panel so previous lines don't distract
+		el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 		scrollResetTimer = setTimeout(() => {
 			internalScroll = false;
 		}, 400);
@@ -75,12 +87,18 @@
 </script>
 
 <div class="transcript-wrap">
+	{#if showCoachMark}
+		<button type="button" class="coach-mark" onclick={() => { showCoachMark = false; localStorage.setItem('clip-coach-seen', '1'); }}>
+			Tap any word for its definition
+		</button>
+	{/if}
 	<div class="transcript" bind:this={container} onscroll={handleScroll}>
 		{#each segments as segment, i}
 			<TranscriptLine
 				text={segment.text}
 				startTime={segment.start_time}
 				active={i === activeIndex}
+				dimmed={activeIndex >= 0 && i > activeIndex}
 				annotations={annotationMap.get(segment.id) || []}
 				segmentId={segment.id}
 				onseek={handleSeek}
@@ -126,5 +144,26 @@
 	.follow-btn:hover {
 		border-color: var(--accent);
 		color: var(--accent);
+	}
+
+	.coach-mark {
+		position: absolute;
+		top: 12px;
+		left: 50%;
+		transform: translateX(-50%);
+		z-index: 10;
+		padding: 8px 16px;
+		border-radius: 999px;
+		background: var(--accent);
+		color: #000;
+		font-size: 12px;
+		font-weight: 600;
+		cursor: pointer;
+		animation: coachFade 5s ease forwards;
+		box-shadow: 0 4px 16px rgba(212, 133, 74, 0.3);
+	}
+	@keyframes coachFade {
+		0%, 70% { opacity: 1; }
+		100% { opacity: 0; }
 	}
 </style>

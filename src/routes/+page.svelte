@@ -115,8 +115,16 @@
 		localStorage.setItem('tm-theme', theme);
 	}
 
+	function isYouTubeUrl(u: string): boolean {
+		return /(?:youtube\.com\/watch|youtu\.be\/|youtube\.com\/shorts\/|youtube\.com\/embed\/)/.test(u);
+	}
+
 	async function handleSubmit() {
 		if (!url.trim()) return;
+		if (!isYouTubeUrl(url.trim())) {
+			error = 'Please paste a valid YouTube URL (youtube.com or youtu.be)';
+			return;
+		}
 		if (!data.user) {
 			localStorage.setItem('clip-pending-url', url.trim());
 			authModalOpen.set(true);
@@ -266,7 +274,7 @@
 	<!-- Hero -->
 	<div class="hero">
 		<h1>Keep watching.<br><em>We'll handle the words.</em></h1>
-		<p class="lede">Paste a YouTube link — tap any word to get an instant explanation, without pausing your brain.</p>
+		<p class="lede">Turn any YouTube clip into an interactive English lesson — with transcript, word lookup, explanations, and quizzes.</p>
 
 		<div class="features">
 			<div class="feature">
@@ -275,7 +283,7 @@
 			</div>
 			<div class="feature">
 				<span class="feature-icon"><MousePointerClick size={18} /></span>
-				<div><strong>Tap to learn</strong><span class="feature-desc">Click any word for instant definition + examples</span></div>
+				<div><strong>Tap to learn</strong><span class="feature-desc">Tap any word in the transcript for its definition</span></div>
 			</div>
 			<div class="feature">
 				<span class="feature-icon"><BrainCircuit size={18} /></span>
@@ -310,6 +318,28 @@
 			</div>
 		</form>
 		{#if error}<p class="input-error" id="youtube-url-error" role="alert">{error}</p>{/if}
+
+		<!-- How it works -->
+		<div class="how-it-works">
+			<div class="step">
+				<span class="step-num">1</span>
+				<span class="step-text">Paste a YouTube link</span>
+			</div>
+			<span class="step-arrow">
+				<ArrowRight size={14} />
+			</span>
+			<div class="step">
+				<span class="step-num">2</span>
+				<span class="step-text">AI transcribes & analyzes</span>
+			</div>
+			<span class="step-arrow">
+				<ArrowRight size={14} />
+			</span>
+			<div class="step">
+				<span class="step-num">3</span>
+				<span class="step-text">Study, tap words, take quiz</span>
+			</div>
+		</div>
 	</div>
 
 	<!-- Clips list -->
@@ -612,6 +642,42 @@
 		line-height: 1.7;
 	}
 
+	/* How it works */
+	.how-it-works {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+		margin-top: 28px;
+	}
+	.step {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+	.step-num {
+		width: 22px;
+		height: 22px;
+		border-radius: 50%;
+		border: 1px solid var(--border);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 11px;
+		font-weight: 600;
+		color: var(--text-muted);
+		flex-shrink: 0;
+	}
+	.step-text {
+		font-size: 12px;
+		color: var(--text-muted);
+	}
+	.step-arrow {
+		color: var(--text-light);
+		display: flex;
+		align-items: center;
+	}
+
 	/* Input box */
 	.input-box {
 		background: var(--bg-card);
@@ -659,7 +725,7 @@
 		padding: 10px 20px;
 		border-radius: 10px;
 		background: var(--accent);
-		color: #000;
+		color: #fff;
 		font-size: 13px;
 		font-weight: 600;
 		border: none;
@@ -937,6 +1003,9 @@
 			font-size: 14px;
 		}
 		.features {
+			display: none;
+		}
+		.how-it-works {
 			display: none;
 		}
 		.clip {

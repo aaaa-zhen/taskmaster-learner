@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clip Learner - Episode Demo</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0a0a0a;
+  --surface: #111111;
+  --surface-2: #161616;
+  --border: #222222;
+  --border-focus: rgba(212, 133, 74, 0.5);
+  --text: #e8e8e8;
+  --text-2: #999999;
+  --text-3: #555555;
+  --accent: #d4854a;
+  --accent-glow: rgba(212, 133, 74, 0.12);
+  --green: #3db86a;
+  --red: #c74545;
+}
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 24px 24px;
+  pointer-events: none;
+}
+
+/* Header */
+header {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  flex-shrink: 0;
+}
+.back {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-3);
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.back:hover { color: var(--text-2); }
+.sep { width: 1px; height: 18px; background: var(--border); }
+header h1 {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hdr-actions { display: flex; gap: 6px; }
+.btn-h {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-h:hover { border-color: #333; color: var(--text); }
+.btn-h.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #000;
+  font-weight: 600;
+}
+.btn-h .cnt { color: var(--accent); font-weight: 600; }
+
+/* Stage */
+.stage {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+}
+.stage-inner {
+  width: 100%;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 28px 32px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Video */
+.video-shell {
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  background: #000;
+  aspect-ratio: 16/9;
+  position: relative;
+}
+.video-inner {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(160deg, #0e0e14, #080810);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.play-ring {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.6);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.play-ring:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+.vid-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 8px 16px;
+  background: linear-gradient(transparent, rgba(0,0,0,0.8));
+  display: flex;
+  justify-content: space-between;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: rgba(255,255,255,0.5);
+}
+.vid-progress {
+  position: absolute;
+  bottom: 32px;
+  left: 16px; right: 16px;
+  height: 2px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 1px;
+}
+.vid-progress-fill {
+  width: 38%;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 1px;
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+/* Caption */
+.caption {
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  background: var(--surface);
+  padding: 18px 22px;
+  font-size: 17px;
+  line-height: 1.75;
+  cursor: text;
+  user-select: text;
+}
+.caption .hl {
+  background: rgba(212, 133, 74, 0.12);
+  color: var(--accent);
+  border-radius: 3px;
+  padding: 1px 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.caption .hl:hover {
+  background: rgba(212, 133, 74, 0.22);
+}
+
+/* Word Popup */
+.popup {
+  position: fixed;
+  top: 50%;
+  right: 48px;
+  transform: translateY(-50%);
+  width: 340px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 28px;
+  z-index: 20;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+}
+.popup-close {
+  position: absolute;
+  top: 16px; right: 16px;
+  background: none;
+  border: none;
+  color: var(--text-3);
+  cursor: pointer;
+  padding: 4px;
+}
+.popup-close:hover { color: var(--text-2); }
+.popup h3 {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+.popup .phon {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-3);
+  margin-bottom: 16px;
+}
+.popup .def {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text);
+  margin-bottom: 14px;
+}
+.popup .ex {
+  font-size: 13px;
+  color: var(--text-2);
+  font-style: italic;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  line-height: 1.55;
+}
+.popup .save {
+  margin-top: 18px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+.popup .save:hover {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+</style>
+</head>
+<body>
+
+<header>
+  <a class="back">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+    Back
+  </a>
+  <span class="sep"></span>
+  <h1>Trump's Labor Secretary resigns after reports of drinking and misconduct</h1>
+  <div class="hdr-actions">
+    <button class="btn-h">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Offline
+    </button>
+    <button class="btn-h">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+      Notebook <span class="cnt">2</span>
+    </button>
+    <button class="btn-h primary">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+      Quiz me
+    </button>
+  </div>
+</header>
+
+<div class="stage">
+  <div class="stage-inner">
+    <div class="video-shell">
+      <div class="video-inner">
+        <div class="play-ring">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </div>
+      </div>
+      <div class="vid-progress"><div class="vid-progress-fill"></div></div>
+      <div class="vid-bar">
+        <span>0:52 / 2:32</span>
+        <span>A prev &middot; S replay &middot; D next</span>
+      </div>
+    </div>
+
+    <div class="caption">
+      And now new questions about their reported ties to the CIA. Senior foreign policy correspondent Jillian Turner is live at the State Department with the latest. The <span class="hl">allegations</span> are deeply concerning and warrant further investigation.
+    </div>
+  </div>
+</div>
+
+<!-- Word Popup -->
+<div class="popup">
+  <button class="popup-close">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+  </button>
+  <h3>allegations</h3>
+  <div class="phon">/al-uh-GAY-shunz/</div>
+  <div class="def">Claims or assertions that someone has done something illegal or wrong, typically made without proof.</div>
+  <div class="ex">"The allegations of misconduct led to a formal investigation by the committee."</div>
+  <button class="save">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+    Save word
+  </button>
+</div>
+
+</body>
+</html>

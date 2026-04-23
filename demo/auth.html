@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clip Learner - Auth + Settings Demo</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0a0a0a;
+  --surface: #111111;
+  --surface-2: #161616;
+  --border: #222222;
+  --border-focus: rgba(212, 133, 74, 0.5);
+  --text: #e8e8e8;
+  --text-2: #999999;
+  --text-3: #555555;
+  --accent: #d4854a;
+  --accent-glow: rgba(212, 133, 74, 0.12);
+  --green: #3db86a;
+}
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 60px;
+}
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 24px 24px;
+  pointer-events: none;
+}
+
+/* Auth Card */
+.card {
+  width: 400px;
+  padding: 40px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  position: relative;
+  z-index: 1;
+}
+.card-logo {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+.card-sub {
+  font-size: 14px;
+  color: var(--text-2);
+  margin-bottom: 28px;
+  line-height: 1.6;
+}
+.card h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  margin-bottom: 28px;
+}
+.tab {
+  flex: 1;
+  padding: 9px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.tab.active {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+/* Fields */
+.field {
+  margin-bottom: 20px;
+}
+.field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+  margin-bottom: 8px;
+}
+.field .input-wrap {
+  position: relative;
+}
+.field input {
+  width: 100%;
+  padding: 13px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+.field input:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--accent-glow), 0 0 24px var(--accent-glow);
+}
+.field input::placeholder { color: var(--text-3); }
+.field .hint {
+  display: block;
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 6px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Eye toggle */
+.eye-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-3);
+  cursor: pointer;
+  padding: 4px;
+}
+.eye-btn:hover { color: var(--text-2); }
+
+/* Buttons */
+.btn-primary {
+  width: 100%;
+  padding: 13px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #000;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-top: 8px;
+}
+.btn-primary:hover { background: #c07a42; border-color: #c07a42; }
+
+.actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+.btn-ghost {
+  padding: 10px 22px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.btn-ghost:hover { border-color: #333; color: var(--text); }
+.btn-save {
+  padding: 10px 22px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #000;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Success state */
+.success-msg {
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(61, 184, 106, 0.25);
+  background: rgba(61, 184, 106, 0.06);
+  color: var(--green);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+  margin-top: 16px;
+}
+
+/* Glow input - API Key style like xAI verification */
+.glow-input {
+  border-color: var(--border-focus) !important;
+  box-shadow: 0 0 0 3px var(--accent-glow), 0 0 30px var(--accent-glow) !important;
+}
+
+/* Separator */
+.sep {
+  width: 1px;
+  height: 300px;
+  background: linear-gradient(transparent, var(--border), transparent);
+  flex-shrink: 0;
+}
+</style>
+</head>
+<body>
+
+<!-- Auth Card -->
+<div class="card">
+  <div class="card-logo">Clip Learner</div>
+  <p class="card-sub">Sign up to save words and track your progress.</p>
+
+  <div class="tabs">
+    <button class="tab active">Log in</button>
+    <button class="tab">Sign up</button>
+  </div>
+
+  <div class="field">
+    <label>Username</label>
+    <input type="text" value="azhen">
+  </div>
+  <div class="field">
+    <label>Password</label>
+    <div class="input-wrap">
+      <input type="password" value="mypassword123">
+      <button class="eye-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <button class="btn-primary">Log in</button>
+
+  <div class="success-msg">Account created! Logging you in...</div>
+</div>
+
+<div class="sep"></div>
+
+<!-- Settings Card -->
+<div class="card">
+  <h3>Settings</h3>
+  <p class="card-sub" style="margin-bottom:24px;">Configure your API provider for video analysis.</p>
+
+  <div class="field">
+    <label>API Key</label>
+    <div class="input-wrap">
+      <input type="password" class="glow-input" value="sk-aihubmix-abc123" placeholder="sk-...">
+      <button class="eye-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </div>
+    <span class="hint">Your LLM provider API key (AIHubMix, OpenAI, etc.)</span>
+  </div>
+
+  <div class="field">
+    <label>Base URL</label>
+    <input type="text" value="https://aihubmix.com">
+    <span class="hint">API provider URL (without /v1)</span>
+  </div>
+
+  <div class="field">
+    <label>Model</label>
+    <input type="text" value="gpt-5.4-nano">
+    <span class="hint">Model name to use for analysis</span>
+  </div>
+
+  <div class="actions">
+    <button class="btn-ghost">Cancel</button>
+    <button class="btn-save">Save</button>
+  </div>
+</div>
+
+</body>
+</html>

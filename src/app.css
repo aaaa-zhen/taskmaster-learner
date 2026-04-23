@@ -6,9 +6,9 @@
 	--text: #141414;
 	--text-muted: #666666;
 	--text-light: #999999;
-	--accent: oklch(56% 0.14 48);
-	--accent-soft: oklch(94% 0.03 52);
-	--accent-hover: oklch(50% 0.15 46);
+	--accent: #c07a42;
+	--accent-soft: rgba(192, 122, 66, 0.1);
+	--accent-hover: #a86935;
 	--blue: #b77945;
 	--green: #2f9e5c;
 	--red: #d55;

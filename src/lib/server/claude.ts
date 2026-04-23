@@ -261,9 +261,9 @@ export async function lookupWord(
 		return cached.value;
 	}
 
-	// Try free dictionary API first (instant, <200ms)
+	// Try free dictionary API first (instant, <200ms) — only use if it has an example too
 	const dictResult = await tryFreeDictionary(word);
-	if (dictResult && dictResult.definition) {
+	if (dictResult && dictResult.definition && dictResult.example) {
 		if (lookupCache.size >= LOOKUP_CACHE_MAX) {
 			const firstKey = lookupCache.keys().next().value;
 			if (firstKey) lookupCache.delete(firstKey);
