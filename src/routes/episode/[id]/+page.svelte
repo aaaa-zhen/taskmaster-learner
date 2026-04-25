@@ -68,14 +68,17 @@
 	let processPollInterval: ReturnType<typeof setInterval> | null = null;
 
 	// Active segment when paused — show as focused single line
-	const pausedSegment = $derived.by(() => {
-		if ($isPlaying) return null;
+	// Always tracks the current segment (used for caption bar)
+	const activeSegment = $derived.by(() => {
 		const t = $currentTime;
 		for (let i = data.segments.length - 1; i >= 0; i--) {
 			if (t >= data.segments[i].start_time) return data.segments[i];
 		}
 		return data.segments[0] ?? null;
 	});
+
+	// Keep pausedSegment as alias so nothing else breaks
+	const pausedSegment = $derived($isPlaying ? null : activeSegment);
 
 	// Adaptive quiz state — two-phase tutor.
 	// Flow: openQuiz() fetches 3 initial questions → user answers all 3 →
@@ -795,8 +798,8 @@
 					<div class="content-card">
 						<div class="caption-bar" class:dim={$isPlaying && !showTranscript}>
 							<div class="caption-text">
-								{#if pausedSegment && (!$isPlaying || showTranscript)}
-									<p class="paused-text">{pausedSegment.text}</p>
+								{#if activeSegment && (showTranscript || !$isPlaying)}
+									<p class="paused-text">{activeSegment.text}</p>
 								{:else if $isPlaying && !showTranscript}
 									<p class="paused-text hint">Space to pause</p>
 								{/if}
@@ -1153,6 +1156,13 @@
 		overflow: hidden;
 		border: 1px solid var(--border);
 		flex-shrink: 0;
+		/* Leave room for nav bar (~56px) + caption bar (~52px) + padding */
+		max-height: calc(100vh - 56px - 52px - 80px);
+	}
+	.video-shell :global(video),
+	.video-shell :global(iframe) {
+		max-height: calc(100vh - 56px - 52px - 80px);
+		object-fit: contain;
 	}
 	.video-shell :global(video),
 	.video-shell :global(iframe) { width: 100%; display: block; }

@@ -25,6 +25,8 @@
 	let resumePositions = $state<Record<string, number>>({});
 	let theme = $state<'light' | 'dark'>('light');
 	let settingsOpen = $state(false);
+	let deleteConfirmId = $state<string | null>(null);
+	let deleteConfirmTitle = $state('');
 
 	async function handleLogout() {
 		try {
@@ -111,8 +113,13 @@
 
 	function toggleTheme() {
 		theme = theme === 'dark' ? 'light' : 'dark';
+		// Briefly suppress all transitions so theme switch is instant (no flash)
+		document.documentElement.style.setProperty('--theme-transition', 'none');
 		document.documentElement.dataset.theme = theme;
 		localStorage.setItem('tm-theme', theme);
+		requestAnimationFrame(() => {
+			document.documentElement.style.removeProperty('--theme-transition');
+		});
 	}
 
 	function isYouTubeUrl(u: string): boolean {
@@ -163,10 +170,18 @@
 		}
 	}
 
-	async function deleteEpisode(e: MouseEvent, id: string) {
+	function deleteEpisode(e: MouseEvent, id: string) {
 		e.preventDefault();
 		e.stopPropagation();
-		if (!confirm('Remove this clip?')) return;
+		const ep = episodes.find((ep) => ep.id === id);
+		deleteConfirmId = id;
+		deleteConfirmTitle = ep?.title || 'this clip';
+	}
+
+	async function confirmDelete() {
+		const id = deleteConfirmId;
+		if (!id) return;
+		deleteConfirmId = null;
 		const episode = episodes.find((ep) => ep.id === id);
 		await fetch('/api/process', {
 			method: 'DELETE',
@@ -430,6 +445,19 @@
 </div>
 
 <SettingsModal bind:open={settingsOpen} />
+
+{#if deleteConfirmId}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div class="del-backdrop" onclick={() => deleteConfirmId = null} onkeydown={() => {}}></div>
+	<div class="del-modal" role="dialog" aria-modal="true" aria-labelledby="del-title">
+		<p id="del-title" class="del-title">Remove clip?</p>
+		<p class="del-sub" title={deleteConfirmTitle}>{deleteConfirmTitle.length > 60 ? deleteConfirmTitle.slice(0, 57) + '…' : deleteConfirmTitle}</p>
+		<div class="del-actions">
+			<button class="del-cancel" onclick={() => deleteConfirmId = null}>Cancel</button>
+			<button class="del-confirm" onclick={confirmDelete}>Remove</button>
+		</div>
+	</div>
+{/if}
 
 
 <style>
@@ -801,7 +829,7 @@
 		border-radius: 12px;
 		background: var(--bg-card);
 		cursor: pointer;
-		transition: border-color 0.2s, background 0.2s;
+		transition: border-color 0.15s, background 0.15s, color 0.15s;
 		position: relative;
 		margin-bottom: 8px;
 	}
@@ -1020,4 +1048,77 @@
 			opacity: 1;
 		}
 	}
+
+	/* Delete confirmation modal */
+	.del-backdrop {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.5);
+		z-index: 900;
+		backdrop-filter: blur(2px);
+	}
+	.del-modal {
+		position: fixed;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		z-index: 901;
+		background: var(--bg-card);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-lg);
+		padding: 24px 24px 20px;
+		width: min(360px, 90vw);
+		box-shadow: 0 16px 48px rgba(0, 0, 0, 0.25);
+		animation: delIn 0.15s ease-out;
+	}
+	@keyframes delIn {
+		from { opacity: 0; transform: translate(-50%, -48%); }
+		to   { opacity: 1; transform: translate(-50%, -50%); }
+	}
+	.del-title {
+		font-size: 15px;
+		font-weight: 600;
+		color: var(--text);
+		margin: 0 0 6px;
+	}
+	.del-sub {
+		font-size: 13px;
+		color: var(--text-muted);
+		margin: 0 0 20px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.del-actions {
+		display: flex;
+		justify-content: flex-end;
+		gap: 8px;
+	}
+	.del-cancel {
+		padding: 7px 16px;
+		border-radius: var(--radius-pill);
+		border: 1px solid var(--border);
+		background: transparent;
+		font-size: 13px;
+		font-weight: 500;
+		color: var(--text-muted);
+		cursor: pointer;
+		transition: border-color 0.12s, color 0.12s;
+	}
+	.del-cancel:hover {
+		border-color: var(--border);
+		color: var(--text);
+	}
+	.del-confirm {
+		padding: 7px 16px;
+		border-radius: var(--radius-pill);
+		border: none;
+		background: var(--red);
+		font-size: 13px;
+		font-weight: 500;
+		color: #fff;
+		cursor: pointer;
+		transition: opacity 0.12s;
+	}
+	.del-confirm:hover { opacity: 0.85; }
 </style>
