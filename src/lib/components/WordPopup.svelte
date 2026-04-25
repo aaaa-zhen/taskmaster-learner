@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { BookmarkPlus } from 'lucide-svelte';
+	import { BookmarkPlus, Volume2 } from 'lucide-svelte';
 	import { isPlaying, subtitleVisible } from '$lib/stores/player';
 	import { requireAuth } from '$lib/stores/auth';
 
@@ -39,6 +39,8 @@
 	let toastVisible = $state(false);
 	let toastWord = $state('');
 	let toastTimer: ReturnType<typeof setTimeout> | null = null;
+	let ttsLoading = $state(false);
+	let ttsAudio: HTMLAudioElement | null = null;
 
 	let lastLookedUp = '';
 	let lookupContext = $state<LookupContext | null>(null);
@@ -147,6 +149,32 @@
 			entry = { definition: 'Could not look up this word.' };
 		} finally {
 			loading = false;
+		}
+	}
+
+	async function playTTS() {
+		if (ttsLoading || !word) return;
+		ttsLoading = true;
+		try {
+			const res = await fetch('/api/tts', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ text: word })
+			});
+			if (!res.ok) return;
+			const blob = await res.blob();
+			const url = URL.createObjectURL(blob);
+			if (ttsAudio) {
+				ttsAudio.pause();
+				URL.revokeObjectURL(ttsAudio.src);
+			}
+			ttsAudio = new Audio(url);
+			ttsAudio.play();
+			ttsAudio.onended = () => URL.revokeObjectURL(url);
+		} catch {
+			// silently fail
+		} finally {
+			ttsLoading = false;
 		}
 	}
 
@@ -272,7 +300,12 @@
 		<div class="popup-content">
 			<div class="popup-header">
 				<span class="popup-word">{word}</span>
-				<button class="popup-close" onclick={dismiss}>&times;</button>
+				<div class="popup-header-actions">
+					<button class="tts-btn" class:loading={ttsLoading} onclick={playTTS} aria-label="Listen to pronunciation" title="Listen">
+						<Volume2 size={14} strokeWidth={2} />
+					</button>
+					<button class="popup-close" onclick={dismiss}>&times;</button>
+				</div>
 			</div>
 			{#if entry.phonetic || entry.partOfSpeech}
 				<div class="popup-meta">
@@ -383,7 +416,36 @@
 		border-radius: var(--radius-pill);
 	}
 
+	.popup-header-actions {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		flex-shrink: 0;
+	}
+	.tts-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 26px;
+		height: 26px;
+		border-radius: var(--radius-sm);
+		background: none;
+		border: none;
+		color: var(--text-light);
+		cursor: pointer;
+		padding: 0;
+		min-height: auto;
+		min-width: auto;
+		transition: color 0.12s, background 0.12s;
+	}
+	.tts-btn:hover { color: var(--accent); background: var(--accent-soft); }
+	.tts-btn.loading { opacity: 0.5; cursor: default; }
 	.popup-close {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 26px;
+		height: 26px;
 		background: none;
 		border: none;
 		font-size: 18px;
@@ -393,7 +455,6 @@
 		line-height: 1;
 		min-height: auto;
 		min-width: auto;
-		flex-shrink: 0;
 	}
 	.popup-close:hover { color: var(--text); }
 

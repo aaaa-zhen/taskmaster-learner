@@ -708,18 +708,41 @@
 
 	<div class="stage">
 			<div class="stage-inner">
-				<div class="video-shell">
-					{#if isReady}
-						{#if hasLocalVideo}
-							<VideoPlayer bind:this={videoPlayer} src={videoPath} segments={data.segments} />
-						{:else}
-							<YouTubePlayer
-								bind:this={videoPlayer}
-								videoId={data.episode.video_id || data.episode.id}
-								segments={data.segments}
-							/>
-						{/if}
-					{:else if isErrored}
+				{#if isReady}
+					<div class="content-card">
+						<div class="video-shell">
+							{#if hasLocalVideo}
+								<VideoPlayer bind:this={videoPlayer} src={videoPath} segments={data.segments} />
+							{:else}
+								<YouTubePlayer
+									bind:this={videoPlayer}
+									videoId={data.episode.video_id || data.episode.id}
+									segments={data.segments}
+								/>
+							{/if}
+						</div>
+						<div class="caption-bar" class:dim={$isPlaying && !showTranscript}>
+							<div class="caption-text">
+								{#if activeSegment && (showTranscript || !$isPlaying)}
+									<p class="paused-text">{activeSegment.text}</p>
+								{:else if $isPlaying && !showTranscript}
+									<p class="paused-text hint">Space to pause</p>
+								{/if}
+							</div>
+							{#if data.segments.length > 0}
+								<button
+									type="button"
+									class="transcript-toggle"
+									class:active={showTranscript}
+									onclick={() => showTranscript = !showTranscript}
+								>
+									{showTranscript ? 'Off' : 'Show'}
+								</button>
+							{/if}
+						</div>
+					</div>
+				{:else if isErrored}
+					<div class="video-shell">
 						<div class="processing-panel error">
 							<div class="processing-kicker">Processing failed</div>
 							<h2 class="processing-title">Couldn't process this video</h2>
@@ -736,7 +759,9 @@
 								<a href="/" class="retry-link">← Back to clips</a>
 							</div>
 						</div>
-					{:else}
+					</div>
+				{:else}
+					<div class="video-shell">
 						<div class="processing-panel">
 							<div class="proc-header">
 								<div class="proc-stage-label">{stageLabel(progressStage, episodeStatus)}</div>
@@ -790,30 +815,6 @@
 							<p class="proc-hint">
 								Runs in the background — feel free to leave this tab.
 							</p>
-						</div>
-					{/if}
-			</div>
-
-				{#if isReady}
-					<div class="content-card">
-						<div class="caption-bar" class:dim={$isPlaying && !showTranscript}>
-							<div class="caption-text">
-								{#if activeSegment && (showTranscript || !$isPlaying)}
-									<p class="paused-text">{activeSegment.text}</p>
-								{:else if $isPlaying && !showTranscript}
-									<p class="paused-text hint">Space to pause</p>
-								{/if}
-							</div>
-							{#if data.segments.length > 0}
-								<button
-									type="button"
-									class="transcript-toggle"
-									class:active={showTranscript}
-									onclick={() => showTranscript = !showTranscript}
-								>
-									{showTranscript ? 'Off' : 'Show'}
-								</button>
-							{/if}
 						</div>
 					</div>
 				{/if}
@@ -1151,18 +1152,17 @@
 		}
 	}
 
+	/* When video-shell is inside content-card (ready state), no own border/radius */
+	.content-card .video-shell {
+		overflow: hidden;
+		flex-shrink: 0;
+	}
+	/* Standalone video-shell (processing/error state) */
 	.video-shell {
 		border-radius: var(--radius-sm);
 		overflow: hidden;
 		border: 1px solid var(--border);
 		flex-shrink: 0;
-		/* Leave room for nav bar (~56px) + caption bar (~52px) + padding */
-		max-height: calc(100vh - 56px - 52px - 80px);
-	}
-	.video-shell :global(video),
-	.video-shell :global(iframe) {
-		max-height: calc(100vh - 56px - 52px - 80px);
-		object-fit: contain;
 	}
 	.video-shell :global(video),
 	.video-shell :global(iframe) { width: 100%; display: block; }
