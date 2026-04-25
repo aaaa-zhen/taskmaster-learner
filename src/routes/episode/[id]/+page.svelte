@@ -151,6 +151,8 @@
 		localNotebook = data.notebookEntries ? [...data.notebookEntries] : [];
 	});
 
+	const savedWordSet = $derived(new Set(localNotebook.map(e => e.word.toLowerCase())));
+
 	$effect(() => {
 		const onSaved = (e: Event) => {
 			wordsSaved++;
@@ -1047,7 +1049,7 @@
 	</div>
 {/if}
 
-<WordPopup episodeTitle={data.episode.title} episodeId={data.episode.id} />
+<WordPopup episodeTitle={data.episode.title} episodeId={data.episode.id} savedWords={savedWordSet} />
 
 <style>
 	.study-view {

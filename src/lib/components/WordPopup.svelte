@@ -13,10 +13,12 @@
 
 	let {
 		episodeTitle = '',
-		episodeId = ''
+		episodeId = '',
+		savedWords = new Set<string>()
 	}: {
 		episodeTitle?: string;
 		episodeId?: string;
+		savedWords?: Set<string>;
 	} = $props();
 
 	interface WordEntry {
@@ -45,7 +47,7 @@
 	function showPopup(w: string, rect: DOMRect, context: LookupContext | null = null) {
 		word = w;
 		entry = {};
-		saved = false;
+		saved = savedWords.has(w.toLowerCase());
 		visible = true;
 		loading = true;
 		lookupContext = context;
@@ -81,7 +83,7 @@
 
 		word = selected;
 		entry = {};
-		saved = false;
+		saved = savedWords.has(selected.toLowerCase());
 		visible = true;
 		loading = true;
 		lookupContext = context;
@@ -164,6 +166,10 @@
 			});
 			if (res.status === 401) {
 				requireAuth();
+				return;
+			}
+			if (res.status === 409) {
+				saved = true;
 				return;
 			}
 			if (!res.ok) {
