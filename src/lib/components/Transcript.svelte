@@ -79,7 +79,7 @@
 		internalScroll = true;
 		if (scrollResetTimer) clearTimeout(scrollResetTimer);
 		// Scroll active line to the top of the panel so previous lines don't distract
-		el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 		scrollResetTimer = setTimeout(() => {
 			internalScroll = false;
 		}, 400);

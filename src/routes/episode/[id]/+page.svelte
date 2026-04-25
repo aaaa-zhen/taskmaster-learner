@@ -47,10 +47,9 @@
 	// Analysis panel state
 	let analysisTab = $state<'explanation' | 'scenes' | 'vocab'>('explanation');
 	let focusSegmentId = $state<number | null>(null);
-	let mobilePanel = $state<'transcript' | 'helper'>('transcript');
 
 	// Study mode: 'listening' shows only paused line, 'transcript' shows full panels
-	let studyMode = $state<'listening' | 'transcript'>('listening');
+	let showTranscript = $state(false);
 
 	// Overlay state
 	let notebookOpen = $state(false);
@@ -604,7 +603,6 @@
 		// Update analysis panel to show this segment's explanation
 		focusSegmentId = segmentId;
 		analysisTab = 'explanation';
-		mobilePanel = 'helper';
 		openLineHelp(segmentId, seg?.text || '', seg ? formatTime(seg.start_time) : '');
 	}
 
@@ -791,72 +789,29 @@
 					{/if}
 			</div>
 
-				{#if isReady && data.segments.length > 0}
-					<!-- Mode toggle -->
-					<div class="mode-bar">
-						<div class="mode-toggle">
-							<button class="mode-btn" class:active={studyMode === 'listening'} onclick={() => studyMode = 'listening'}>
-								Listening
-							</button>
-							<button class="mode-btn" class:active={studyMode === 'transcript'} onclick={() => studyMode = 'transcript'}>
-								Transcript
-							</button>
-						</div>
-					</div>
-
-					{#if studyMode === 'listening'}
-						<div class="paused-slot">
-							{#if pausedSegment}
-								<div class="paused-line transcript">
+				{#if isReady}
+					<div class="content-card">
+						<div class="caption-bar" class:dim={$isPlaying && !showTranscript}>
+							<div class="caption-text">
+								{#if pausedSegment && (!$isPlaying || showTranscript)}
 									<p class="paused-text">{pausedSegment.text}</p>
-								</div>
+								{:else if $isPlaying && !showTranscript}
+									<p class="paused-text hint">Space to pause</p>
+								{/if}
+							</div>
+							{#if data.segments.length > 0}
+								<button
+									type="button"
+									class="transcript-toggle"
+									class:active={showTranscript}
+									onclick={() => showTranscript = !showTranscript}
+								>
+									{showTranscript ? 'Off' : 'Show'}
+								</button>
 							{/if}
 						</div>
-					{:else}
-						<!-- Mobile tab switcher -->
-						<div class="panel-tabs-mobile">
-							<button class="panel-tab" class:active={mobilePanel === 'transcript'} onclick={() => mobilePanel = 'transcript'}>
-								Transcript
-							</button>
-							<button class="panel-tab" class:active={mobilePanel === 'helper'} onclick={() => mobilePanel = 'helper'}>
-								Helper
-							</button>
-						</div>
-
-						<div class="study-panels" class:show-helper={mobilePanel === 'helper'}>
-							<div class="panel-transcript">
-								<Transcript
-									segments={data.segments}
-									annotations={data.annotations}
-									onseek={handleSeek}
-									onexplain={handleExplain}
-								/>
-							</div>
-							<div class="panel-helper">
-								<AnalysisPanel
-									scenes={data.scenes}
-									segments={data.segments}
-									annotations={data.annotations}
-									vocabulary={data.vocabulary}
-									{explanation}
-									{loadingExplanation}
-									{focusSegmentId}
-									bind:activeTab={analysisTab}
-									onsaveWord={saveWord}
-								/>
-							</div>
-						</div>
-					{/if}
-				{:else if isReady}
-					<div class="paused-slot">
-						{#if pausedSegment}
-							<div class="paused-line transcript">
-								<p class="paused-text">{pausedSegment.text}</p>
-							</div>
-						{/if}
 					</div>
 				{/if}
-
 		</div>
 	</div>
 </div>
@@ -1175,12 +1130,12 @@
 	 * without adding breakpoints. */
 	.stage-inner {
 		width: 100%;
-		max-width: clamp(600px, 78vw, 1280px);
+		max-width: clamp(600px, 90vw, 1440px);
 		margin: 0 auto;
-		padding: clamp(12px, 1.5vw, 20px) clamp(16px, 3vw, 32px) clamp(24px, 3vw, 48px);
+		padding: clamp(8px, 1vw, 16px) clamp(16px, 2.5vw, 28px) clamp(20px, 2.5vw, 40px);
 		display: flex;
 		flex-direction: column;
-		gap: clamp(8px, 1vw, 14px);
+		gap: clamp(6px, 0.8vw, 12px);
 	}
 
 	/* Below 600px the clamp() min would force overflow, so drop back to
@@ -1411,44 +1366,52 @@
 	}
 	.retry-link:hover { color: var(--text); }
 
-	.paused-slot {
-		/* Reserve a fixed-ish height regardless of whether a caption is showing,
-		 * so the video doesn't jump up/down when the user plays/pauses. The
-		 * clamp gives a sensible range from phone to big monitor. */
-		height: clamp(88px, 9vh, 140px);
-		margin-top: 4px;
-		display: flex;
-		align-items: flex-start;
-	}
-	.paused-line {
-		width: 100%;
-		background: var(--bg-card);
+	/* Content card: video + caption bar + optional transcript */
+	.content-card {
 		border: 1px solid var(--border);
-		border-left: 3px solid var(--accent);
 		border-radius: var(--radius-sm);
-		padding: clamp(14px, 1.6vw, 22px) clamp(18px, 2vw, 28px);
-		animation: fadeSlideIn 0.18s ease-out;
+		background: var(--bg-card);
+		overflow: hidden;
 	}
-	@keyframes fadeSlideIn {
-		from { opacity: 0; transform: translateY(-4px); }
-		to   { opacity: 1; transform: translateY(0); }
-	}
-	/* Mode toggle */
-	.mode-bar {
+	.caption-bar {
 		display: flex;
-		justify-content: center;
+		align-items: center;
+		gap: 12px;
+		padding: 14px 20px;
+		border-left: 3px solid var(--accent);
+		min-height: 52px;
+		transition: opacity 0.2s, min-height 0.2s;
 	}
-	.mode-toggle {
-		display: inline-flex;
-		padding: 3px;
-		border-radius: var(--radius-pill);
+	.caption-bar.playing {
+		border-left-color: var(--border);
+		min-height: 44px;
+		opacity: 0.5;
+	}
+	.caption-text {
+		flex: 1;
+		min-width: 0;
+	}
+	.paused-text {
+		font-size: 15px;
+		line-height: 1.6;
+		color: var(--text);
+		margin: 0;
+		font-family: var(--font-body);
+		user-select: text;
+	}
+	.paused-text.hint {
+		color: var(--text-muted);
+		font-size: 13px;
+		font-style: italic;
+	}
+	.caption-bar.dim {
+		opacity: 0.4;
+		border-left-color: var(--border);
+	}
+	.transcript-toggle {
+		padding: 5px 13px;
 		border: 1px solid var(--border);
-		background: var(--bg-dark);
-	}
-	.mode-btn {
-		padding: 6px 18px;
 		border-radius: var(--radius-pill);
-		border: none;
 		background: transparent;
 		font-family: inherit;
 		font-size: 12px;
@@ -1456,90 +1419,18 @@
 		color: var(--text-muted);
 		cursor: pointer;
 		transition: all 0.15s;
+		flex-shrink: 0;
 	}
-	.mode-btn.active {
-		background: var(--bg-card);
-		color: var(--text);
-		box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+	.transcript-toggle:hover {
+		border-color: var(--accent);
+		color: var(--accent);
 	}
-
-	/* Study panels — 2-column layout below video */
-	.panel-tabs-mobile {
-		display: none;
-	}
-	.study-panels {
-		display: grid;
-		grid-template-columns: 1fr 380px;
-		gap: 0;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
-		overflow: hidden;
-		height: clamp(320px, 45vh, 520px);
-	}
-	.panel-transcript {
-		border-right: 1px solid var(--border);
-		overflow: hidden;
-	}
-	.panel-helper {
-		overflow: hidden;
+	.transcript-toggle.active {
+		background: color-mix(in srgb, var(--accent) 12%, var(--bg-card));
+		border-color: var(--accent);
+		color: var(--accent);
 	}
 
-	@media (max-width: 900px) {
-		.study-panels {
-			grid-template-columns: 1fr;
-			min-height: 300px;
-		}
-		.panel-tabs-mobile {
-			display: flex;
-			border: 1px solid var(--border);
-			border-radius: var(--radius-sm);
-			padding: 3px;
-			margin-bottom: 8px;
-			background: var(--bg-card);
-		}
-		.panel-tab {
-			flex: 1;
-			padding: 8px;
-			border-radius: calc(var(--radius-sm) - 2px);
-			border: none;
-			background: transparent;
-			font-family: inherit;
-			font-size: 12px;
-			font-weight: 600;
-			color: var(--text-muted);
-			cursor: pointer;
-		}
-		.panel-tab.active {
-			background: var(--bg-dark);
-			color: var(--text);
-		}
-		.panel-transcript {
-			border-right: none;
-		}
-		.study-panels .panel-helper {
-			display: none;
-		}
-		.study-panels .panel-transcript {
-			display: block;
-		}
-		.study-panels.show-helper .panel-helper {
-			display: block;
-		}
-		.study-panels.show-helper .panel-transcript {
-			display: none;
-		}
-	}
-
-	.paused-text {
-		font-size: clamp(17px, 1.5vw, 22px);
-		line-height: 1.6;
-		color: var(--text);
-		margin: 0;
-		font-family: var(--font-body);
-		user-select: text;
-		cursor: text;
-		letter-spacing: -0.005em;
-	}
 
 		/* Backdrop */
 	.backdrop {
@@ -1780,7 +1671,7 @@
 			h1 { font-size: 13px; }
 			.icon-btn { padding: 6px 10px; font-size: 12px; }
 			.stage-inner { padding: 12px 14px 30px; }
-			.paused-slot { min-height: 118px; }
+
 			.quiz-body { padding: 16px 18px; }
 			.q-question { font-size: 18px; }
 		}

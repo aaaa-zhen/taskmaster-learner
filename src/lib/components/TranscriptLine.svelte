@@ -150,8 +150,8 @@
 	.line {
 		display: flex;
 		align-items: flex-start;
-		gap: 14px;
-		padding: 16px 18px;
+		gap: 12px;
+		padding: 11px 16px;
 		transition: background 0.15s, border-color 0.15s;
 		border-left: 2px solid transparent;
 		border-bottom: 1px solid var(--border-light);
@@ -162,20 +162,21 @@
 	}
 
 	.line.active {
-		background: color-mix(in srgb, var(--accent) 6%, var(--bg-card));
+		background: color-mix(in srgb, var(--accent) 10%, var(--bg-card));
 		border-left-color: var(--accent);
+		border-left-width: 3px;
 	}
 	.line.dimmed {
-		opacity: 0.3;
+		opacity: 0.45;
 	}
 	.line.dimmed:hover {
-		opacity: 0.7;
+		opacity: 0.75;
 	}
 
 	.timestamp {
 		color: var(--text-light);
 		font-family: var(--font-ui);
-		font-size: 12px;
+		font-size: 11px;
 		font-variant-numeric: tabular-nums;
 		min-width: 40px;
 		padding-top: 4px;
@@ -205,9 +206,18 @@
 
 	.text {
 		margin: 0;
-		line-height: 1.8;
-		font-size: 18px;
+		line-height: 1.7;
+		font-size: 15px;
 		font-family: var(--font-body);
+		color: var(--text-muted);
+	}
+	.line.active .text {
+		color: var(--text);
+		font-weight: 500;
+		font-size: 16px;
+	}
+	.line.dimmed .text {
+		color: var(--text-muted);
 	}
 
 	.annotations {
