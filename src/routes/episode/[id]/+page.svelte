@@ -9,7 +9,7 @@
 	import { onDestroy, onMount, tick } from 'svelte';
 	import { isPlaying, currentTime } from '$lib/stores/player';
 	import { loadResumePosition } from '$lib/utils/resume';
-	import { Download, BookOpen, HelpCircle, X, ArrowLeft, CheckCircle } from 'lucide-svelte';
+	import { Download, BookOpen, HelpCircle, X, ArrowLeft, CheckCircle, Volume2 } from 'lucide-svelte';
 
 	let { data } = $props();
 
@@ -169,6 +169,32 @@
 	});
 
 	const backdropVisible = $derived(notebookOpen || quizOpen || lineHelpOpen);
+
+	let drawerTtsLoading = $state<string | null>(null);
+	let drawerTtsAudio: HTMLAudioElement | null = null;
+
+	async function playDrawerTTS(word: string) {
+		if (drawerTtsLoading) return;
+		drawerTtsLoading = word;
+		try {
+			const res = await fetch('/api/tts', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ text: word })
+			});
+			if (!res.ok) return;
+			const blob = await res.blob();
+			const url = URL.createObjectURL(blob);
+			if (drawerTtsAudio) { drawerTtsAudio.pause(); URL.revokeObjectURL(drawerTtsAudio.src); }
+			drawerTtsAudio = new Audio(url);
+			drawerTtsAudio.play();
+			drawerTtsAudio.onended = () => URL.revokeObjectURL(url);
+		} catch {
+			// silently fail
+		} finally {
+			drawerTtsLoading = null;
+		}
+	}
 
 	function closeAll() { notebookOpen = false; quizOpen = false; lineHelpOpen = false; }
 
@@ -854,6 +880,15 @@
 					<div class="nb-entry-head">
 						<strong class="nb-word">{entry.word}</strong>
 						<span class="nb-cat">{entry.category}</span>
+						<button
+							class="nb-tts"
+							class:loading={drawerTtsLoading === entry.word}
+							onclick={() => playDrawerTTS(entry.word)}
+							aria-label="Listen to {entry.word}"
+							title="Listen"
+						>
+							<Volume2 size={12} strokeWidth={2} />
+						</button>
 					</div>
 					<p class="nb-def">{entry.definition}</p>
 					{#if entry.example}<p class="nb-ex">{entry.example}</p>{/if}
@@ -1501,6 +1536,16 @@
 	.nb-entry { padding: 14px 12px; border-bottom: 1px solid var(--border-light); }
 	.nb-entry:last-child { border-bottom: none; }
 	.nb-entry-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+	.nb-tts {
+		display: flex; align-items: center; justify-content: center;
+		width: 22px; height: 22px; border-radius: var(--radius-xs);
+		background: none; border: none; color: var(--text-light);
+		cursor: pointer; padding: 0; min-height: auto; min-width: auto;
+		opacity: 0; transition: opacity 0.12s, color 0.12s, background 0.12s;
+	}
+	.nb-entry:hover .nb-tts { opacity: 1; }
+	.nb-tts:hover { color: var(--accent); background: var(--accent-soft); }
+	.nb-tts.loading { opacity: 0.5; cursor: default; }
 	.nb-word { font-size: 15px; font-weight: 600; color: var(--text); }
 	.nb-cat {
 		font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
