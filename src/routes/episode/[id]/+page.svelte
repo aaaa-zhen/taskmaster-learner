@@ -67,8 +67,7 @@
 
 	const captionModes: { id: CaptionMode; label: string }[] = [
 		{ id: 'listen', label: 'Listen' },
-		{ id: 'captions', label: 'Captions' },
-		{ id: 'study', label: 'Study' }
+		{ id: 'captions', label: 'Captions' }
 	];
 
 	let captionMode = $state<CaptionMode>('listen');
@@ -905,7 +904,7 @@
 								/>
 							{/if}
 						</div>
-							<div class="caption-panel" class:study-open={captionMode === 'study'}>
+							<div class="caption-panel">
 								<div class="caption-toolbar">
 									<div class="caption-mode" role="group" aria-label="Caption mode">
 										{#each captionModes as mode}
@@ -956,18 +955,25 @@
 									<div class="caption-text">
 										{#if showCaptionText && activeSegment}
 											<p class="paused-text">
-												{#each captionTokens as token (token.key)}
-													{#if token.word}
-														<button
+												{#each captionParts as part, pi}
+													{#if part.span}
+														<span
+															class="span-group"
+															class:hl-phrasal_verb={part.span.type === 'phrasal_verb'}
+															class:hl-collocation={part.span.type === 'collocation'}
+															title={part.span.type === 'phrasal_verb' ? 'Phrasal verb' : 'Collocation'}
+														>{#each (part.text.match(/\s+|[^\s]+/g) || []) as piece}{#if /\S/.test(piece)}<button
+																type="button"
+																class="caption-word caption-highlight"
+																onclick={handleCaptionTokenClick}
+															>{piece}</button>{:else}{piece}{/if}{/each}</span>
+													{:else}
+														{#each (part.text.match(/\s+|[^\s]+/g) || []) as piece}{#if /\S/.test(piece)}<button
 															type="button"
 															class="caption-word"
-															class:caption-highlight={!!token.span}
-															class:hl-phrasal_verb={token.span?.type === 'phrasal_verb'}
-															class:hl-collocation={token.span?.type === 'collocation'}
-															title={token.span?.type === 'phrasal_verb' ? 'Phrasal verb' : token.span?.type === 'collocation' ? 'Collocation' : 'Look up this word'}
 															onclick={handleCaptionTokenClick}
-														>{token.text}</button>
-													{:else}{token.text}{/if}
+														>{piece}</button>{:else}{piece}{/if}{/each}
+													{/if}
 												{/each}
 											</p>
 										{:else}
@@ -990,64 +996,11 @@
 											</div>
 										{/if}
 
-										{#if captionMode === 'study' && showCaptionText}
-											<div class="caption-neighbors">
-												<button
-													type="button"
-													class="neighbor-line"
-													disabled={!previousCaptionSegment}
-													onclick={(e) => { e.stopPropagation(); seekCaptionSegment(previousCaptionSegment); }}
-												>
-													<span>Previous</span>
-													<strong>{previousCaptionSegment?.text || 'No previous line'}</strong>
-												</button>
-												<button
-													type="button"
-													class="neighbor-line"
-													disabled={!nextCaptionSegment}
-													onclick={(e) => { e.stopPropagation(); seekCaptionSegment(nextCaptionSegment); }}
-												>
-													<span>Next</span>
-													<strong>{nextCaptionSegment?.text || 'No next line'}</strong>
-												</button>
-											</div>
-										{/if}
 									</div>
 								</div>
 							</div>
 
-							{#if captionMode === 'study'}
-								<div class="study-workspace">
-									<section class="study-column">
-										<div class="study-column-head">
-											<h2>Transcript</h2>
-											<span>{data.segments.length} lines</span>
-										</div>
-										<div class="study-column-body">
-											<Transcript
-												segments={data.segments}
-												annotations={data.annotations}
-												onseek={handleSeek}
-												onexplain={handleExplain}
-											/>
-										</div>
-									</section>
-									<section class="study-column analysis-column">
-										<AnalysisPanel
-											scenes={data.scenes}
-											segments={data.segments}
-											annotations={data.annotations}
-											vocabulary={data.vocabulary}
-											explanation={explanation}
-											loadingExplanation={loadingExplanation}
-											focusSegmentId={focusSegmentId}
-											bind:activeTab={analysisTab}
-											onsaveWord={saveWord}
-										/>
-									</section>
 								</div>
-							{/if}
-							</div>
 				{:else if isErrored}
 					<div class="video-shell">
 						<div class="processing-panel error">
@@ -1452,7 +1405,7 @@
 	 * without adding breakpoints. */
 	.stage-inner {
 		width: 100%;
-		max-width: clamp(600px, 90vw, 1440px);
+		max-width: clamp(600px, 75vw, 960px);
 		margin: 0 auto;
 		padding: clamp(8px, 1vw, 16px) clamp(16px, 2.5vw, 28px) clamp(20px, 2.5vw, 40px);
 		display: flex;
@@ -1705,9 +1658,6 @@
 			border-top: 1px solid var(--border);
 			background: var(--bg-card);
 		}
-		.caption-panel.study-open {
-			background: color-mix(in srgb, var(--accent) 3%, var(--bg-card));
-		}
 		.caption-toolbar {
 			display: flex;
 			align-items: center;
@@ -1766,8 +1716,7 @@
 		}
 		.caption-mode-btn:focus-visible,
 		.caption-action:focus-visible,
-		.caption-chip:focus-visible,
-		.neighbor-line:focus-visible {
+		.caption-chip:focus-visible {
 			outline: 2px solid var(--accent);
 			outline-offset: 2px;
 		}
@@ -1821,16 +1770,24 @@
 			padding: 0 1px 2px;
 			font-weight: 600;
 		}
-		.caption-highlight.hl-phrasal_verb {
-			border-bottom: 2px solid #7c9ef5;
-			color: #a8c0ff;
+		.span-group {
+			border-bottom: 2px solid transparent;
+			padding-bottom: 1px;
+			cursor: pointer;
 		}
-		.caption-highlight.hl-phrasal_verb:hover { background: rgba(124, 158, 245, 0.15); }
-		.caption-highlight.hl-collocation {
-			border-bottom: 2px solid #f5a85c;
-			color: #ffc98a;
+		.span-group .caption-highlight {
+			border-bottom: none;
 		}
-		.caption-highlight.hl-collocation:hover { background: rgba(245, 168, 92, 0.15); }
+		.span-group.hl-phrasal_verb {
+			border-bottom-color: #7c9ef5;
+		}
+		.span-group.hl-phrasal_verb .caption-word { color: #a8c0ff; }
+		.span-group.hl-phrasal_verb:hover { background: rgba(124, 158, 245, 0.15); border-radius: 3px; }
+		.span-group.hl-collocation {
+			border-bottom-color: #f5a85c;
+		}
+		.span-group.hl-collocation .caption-word { color: #ffc98a; }
+		.span-group.hl-collocation:hover { background: rgba(245, 168, 92, 0.15); border-radius: 3px; }
 		.caption-insights {
 			display: flex;
 			flex-wrap: wrap;
@@ -1853,103 +1810,10 @@
 		.caption-chip:hover {
 			background: color-mix(in srgb, var(--chip-color) 16%, var(--bg-card));
 		}
-		.caption-neighbors {
-			display: grid;
-			grid-template-columns: repeat(2, minmax(0, 1fr));
-			gap: 10px;
-			margin-top: 14px;
-		}
-		.neighbor-line {
-			min-width: 0;
-			border: 1px solid var(--border);
-			border-radius: var(--radius-sm);
-			background: var(--bg-card);
-			padding: 9px 11px;
-			text-align: left;
-			transition: border-color 0.15s, background-color 0.15s, opacity 0.15s;
-		}
-		.neighbor-line:hover:not(:disabled) {
-			border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
-			background: color-mix(in srgb, var(--accent) 5%, var(--bg-card));
-		}
-		.neighbor-line:disabled {
-			opacity: 0.45;
-			cursor: default;
-		}
-		.neighbor-line span {
-			display: block;
-			margin-bottom: 3px;
-			color: var(--text-light);
-			font-size: 10px;
-			font-weight: 700;
-			letter-spacing: 0.08em;
-			text-transform: uppercase;
-		}
-		.neighbor-line strong {
-			display: -webkit-box;
-			line-clamp: 1;
-			-webkit-line-clamp: 1;
-			-webkit-box-orient: vertical;
-			overflow: hidden;
-			color: var(--text-muted);
-			font-size: 13px;
-			font-weight: 500;
-			line-height: 1.45;
-		}
 		.caption-bar.dim {
 			opacity: 0.62;
 			border-left-color: var(--border);
 		}
-		.study-workspace {
-			display: grid;
-			grid-template-columns: minmax(0, 1.15fr) minmax(340px, 0.85fr);
-			height: min(58vh, 640px);
-			min-height: 420px;
-			border-top: 1px solid var(--border);
-			background: var(--bg-card);
-		}
-		.study-column {
-			min-width: 0;
-			min-height: 0;
-			display: flex;
-			flex-direction: column;
-			border-right: 1px solid var(--border);
-		}
-		.study-column.analysis-column {
-			border-right: none;
-		}
-		.study-column-head {
-			display: flex;
-			align-items: center;
-			justify-content: space-between;
-			gap: 12px;
-			padding: 12px 16px;
-			border-bottom: 1px solid var(--border);
-			background: var(--bg-card);
-		}
-		.study-column-head h2 {
-			margin: 0;
-			font-size: 13px;
-			font-weight: 700;
-			letter-spacing: 0.08em;
-			text-transform: uppercase;
-			color: var(--text-muted);
-		}
-		.study-column-head span {
-			color: var(--text-light);
-			font-size: 12px;
-			font-variant-numeric: tabular-nums;
-		}
-		.study-column-body {
-			flex: 1;
-			min-height: 0;
-			overflow: hidden;
-		}
-		.analysis-column :global(.panel) {
-			height: 100%;
-		}
-
-
 		/* Backdrop */
 	.backdrop {
 		position: fixed;
