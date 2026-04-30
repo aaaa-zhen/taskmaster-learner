@@ -719,7 +719,7 @@ function isYouTubeUrl(u: string): boolean {
 		border-radius: var(--radius-pill);
 		border: 1px solid var(--accent);
 		background: var(--accent);
-		color: #000;
+		color: #fff;
 		font-size: 12px;
 		font-weight: 600;
 		cursor: pointer;
@@ -803,8 +803,8 @@ function isYouTubeUrl(u: string): boolean {
 		transition: border-color 0.3s, box-shadow 0.3s;
 	}
 	.input-box:focus-within {
-		border-color: rgba(212, 133, 74, 0.4);
-		box-shadow: 0 0 0 3px rgba(212, 133, 74, 0.08), 0 0 20px rgba(212, 133, 74, 0.06);
+		border-color: rgba(32, 184, 205, 0.4);
+		box-shadow: 0 0 0 3px rgba(32, 184, 205, 0.08), 0 0 20px rgba(32, 184, 205, 0.06);
 	}
 
 	.input-row {
@@ -1064,7 +1064,7 @@ function isYouTubeUrl(u: string): boolean {
 		transition: all 0.15s;
 	}
 	.clip:hover .resume-btn {
-		border-color: rgba(212, 133, 74, 0.4);
+		border-color: rgba(32, 184, 205, 0.4);
 	}
 	.resume-btn:hover {
 		text-decoration: none;

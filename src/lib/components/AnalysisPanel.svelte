@@ -615,7 +615,7 @@
 
 	.scene-card.active-scene {
 		border-color: var(--accent);
-		box-shadow: 0 8px 24px rgba(232, 76, 48, 0.08);
+		box-shadow: 0 8px 24px rgba(32, 184, 205, 0.08);
 	}
 
 	.scene-header {

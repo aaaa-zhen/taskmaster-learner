@@ -155,12 +155,12 @@
 		padding: 8px 16px;
 		border-radius: 999px;
 		background: var(--accent);
-		color: #000;
+		color: #fff;
 		font-size: 12px;
 		font-weight: 600;
 		cursor: pointer;
 		animation: coachFade 5s ease forwards;
-		box-shadow: 0 4px 16px rgba(212, 133, 74, 0.3);
+		box-shadow: 0 4px 16px rgba(32, 184, 205, 0.3);
 	}
 	@keyframes coachFade {
 		0%, 70% { opacity: 1; }
