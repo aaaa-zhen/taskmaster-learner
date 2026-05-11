@@ -1426,10 +1426,8 @@
 
 	.stage-inner {
 		width: 100%;
-		max-width: clamp(600px, 75vw, 960px);
-		/* Approximate vertical centering: push down ~half viewport minus half typical card height.
-		   Pinned to top so caption growth only pushes content downward, never shifts the video up. */
-		margin: max(8px, calc(50vh - 340px)) auto 40px;
+		max-width: min(90vw, 1200px);
+		margin: max(8px, calc(50vh - 380px)) auto 40px;
 		padding: 0 clamp(16px, 2.5vw, 28px);
 		display: flex;
 		flex-direction: column;
