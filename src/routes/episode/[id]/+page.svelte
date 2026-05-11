@@ -791,17 +791,14 @@
 		const token = target.closest('.caption-word') as HTMLElement | null;
 		if (!token) return;
 
-		// If the word is inside a span-group (phrasal verb / collocation),
-		// select the entire phrase instead of just the single word.
-		const spanGroup = token.closest('.span-group') as HTMLElement | null;
-		const selectTarget = spanGroup || token;
-
+		// Always select just the clicked word — users can save individual
+		// words even inside highlighted phrases (phrasal verbs, collocations).
 		const range = document.createRange();
-		range.selectNodeContents(selectTarget);
+		range.selectNodeContents(token);
 		const selection = window.getSelection();
 		selection?.removeAllRanges();
 		selection?.addRange(range);
-		selectTarget.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+		token.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
 	}
 
 	function annotationStyle(annotation: HumorAnnotation) {
