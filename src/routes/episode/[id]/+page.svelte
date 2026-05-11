@@ -1425,15 +1425,15 @@
 		overflow-y: auto;
 		overflow-x: hidden;
 		background: var(--gray1);
-		display: flex;
-		flex-direction: column;
 	}
 
 	.stage-inner {
 		width: 100%;
 		max-width: clamp(600px, 75vw, 960px);
-		margin: clamp(16px, 4vh, 48px) auto 0;
-		padding: 0 clamp(16px, 2.5vw, 28px) clamp(20px, 2.5vw, 40px);
+		/* Approximate vertical centering: push down ~half viewport minus half typical card height.
+		   Pinned to top so caption growth only pushes content downward, never shifts the video up. */
+		margin: max(8px, calc(50vh - 340px)) auto 40px;
+		padding: 0 clamp(16px, 2.5vw, 28px);
 		display: flex;
 		flex-direction: column;
 		gap: clamp(6px, 0.8vw, 12px);
