@@ -227,9 +227,9 @@
 		<span class="yt-time">{formatTime($currentTime)} / {formatTime($duration)}</span>
 		<div class="yt-controls"></div>
 		<div class="yt-shortcuts">
-			<span class="shortcut-hint">A prev</span>
-			<span class="shortcut-hint">S replay</span>
-			<span class="shortcut-hint">D next</span>
+			<button type="button" class="shortcut-btn" onclick={jumpToPreviousSegment} title="Previous segment (A)">A prev</button>
+			<button type="button" class="shortcut-btn" onclick={replayCurrentSegment} title="Replay segment (S)">S replay</button>
+			<button type="button" class="shortcut-btn" onclick={jumpToNextSegment} title="Next segment (D)">D next</button>
 		</div>
 	</div>
 </div>
@@ -307,13 +307,25 @@
 		gap: 8px;
 	}
 
-	.shortcut-hint {
+	.shortcut-btn {
 		font-family: var(--font-ui);
 		font-size: 11px;
 		color: var(--text-light);
 		background: var(--bg-dark);
-		padding: 2px 6px;
+		padding: 4px 10px;
 		border-radius: 4px;
+		border: 1px solid var(--border);
+		cursor: pointer;
+		transition: background 0.12s, color 0.12s, border-color 0.12s;
+		min-height: auto;
+	}
+	.shortcut-btn:hover {
+		background: var(--accent);
+		color: white;
+		border-color: var(--accent);
+	}
+	.shortcut-btn:active {
+		transform: scale(0.96);
 	}
 
 	@media (max-width: 768px) {
