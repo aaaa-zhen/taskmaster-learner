@@ -84,6 +84,15 @@
 				}
 				saveResumePosition(videoId, time);
 			};
+			// Reclaim focus from YouTube iframe so keyboard shortcuts (A/S/D/Space)
+			// keep working after the user clicks inside the video.
+			const reclaimFocus = () => {
+				if (document.activeElement?.tagName === 'IFRAME') {
+					document.body.focus();
+				}
+			};
+			const focusInterval = setInterval(reclaimFocus, 300);
+
 			window.addEventListener('wordpopup:open', onOpen);
 			window.addEventListener('wordpopup:close', onClose);
 			window.addEventListener('pagehide', persistResume);
@@ -91,6 +100,7 @@
 
 			return () => {
 				clearInterval(timeInterval);
+				clearInterval(focusInterval);
 				if (player?.destroy) player.destroy();
 				window.removeEventListener('wordpopup:open', onOpen);
 				window.removeEventListener('wordpopup:close', onClose);
