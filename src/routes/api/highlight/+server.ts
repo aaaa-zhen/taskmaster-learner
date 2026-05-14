@@ -51,6 +51,8 @@ Examples of BAD highlights (do NOT highlight these):
 - "right amount", "the product", "the problem" — basic determiner/adjective + noun
 - "to build", "to be", "it is" — basic grammar structures
 - "I think", "you know", "of course" — too common
+- "come into" in "come into work" — just means "go to", obvious in context
+- "go to", "get up", "come back", "look at" — too basic, every beginner knows these
 - "hardwired, and" — spans across clause boundary
 - "food is" — not a meaningful collocation
 

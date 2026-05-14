@@ -310,7 +310,7 @@ Reply with valid JSON only (no markdown, no prose). All fields are required; use
 Schema:${phraseField}
 - phonetic: ${isPhrase ? '"(phrase)"' : 'IPA-style pronunciation like "/ teɪk /"'}
 - partOfSpeech: ${isPhrase ? '"phrase" or "idiom" or "sentence"' : '"noun" or "verb" or "adjective" or similar — use "idiom" or "phrasal verb" if this word is part of a phrase'}
-- definition: one simple sentence explaining what it means HERE in the video, max 20 words, like talking to a little kid
+- definition: one simple sentence explaining what it means IN THIS SPECIFIC CONTEXT (look at the Current line!), max 20 words, like talking to a little kid. Many words/phrases have multiple meanings — you MUST pick the one that fits the context. For example, "come into" in "come into work" means "go to / arrive at", NOT "inherit".
 - example: one super simple example sentence, max 12 words
 - note: one short sentence only if there's something extra important; otherwise "".
 
