@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { BookmarkPlus, X, Sparkles, Loader2, ExternalLink, ChevronLeft } from 'lucide-svelte';
 	import WordPopup from '$lib/components/WordPopup.svelte';
+	import { playPronunciation } from '$lib/utils/tts';
 
 	interface Annotation {
 		id: number;
@@ -38,6 +39,16 @@
 	let popupY = $state(0);
 	let popupAbove = $state(true);
 	let selectedAnnotation = $state<Annotation | null>(null);
+	let annTtsLoading = $state(false);
+
+	async function playAnnotationTTS() {
+		if (annTtsLoading || !selectedAnnotation) return;
+		annTtsLoading = true;
+		try {
+			await playPronunciation(selectedAnnotation.text);
+		} catch {}
+		annTtsLoading = false;
+	}
 
 	// Rendered content segments with highlights
 	type Segment = { text: string; annotation: Annotation | null };
@@ -184,11 +195,37 @@
 		return result.filter(p => p.some(s => s.text.trim()));
 	}
 
+	function handleWordClick(e: MouseEvent) {
+		const target = e.target as HTMLElement;
+		if (!target.classList.contains('word-token')) return;
+		e.stopPropagation();
+		const word = target.textContent?.trim();
+		if (!word || word.length < 2) return;
+		// Close annotation popup if open
+		closePopup();
+		const range = document.createRange();
+		range.selectNodeContents(target);
+		const sel = window.getSelection();
+		sel?.removeAllRanges();
+		sel?.addRange(range);
+		target.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+	}
+
+	/** Wrap each word in a clickable span */
+	function tokenizeText(text: string): string {
+		const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+		return escaped.replace(/(\S+)/g, '<span class="word-token">$1</span>');
+	}
+
 	onMount(() => {
 		// Auto-analyze if pending and has no annotations
 		if (article.status === 'pending' && annotations.length === 0) {
 			runAnalysis();
 		}
+		// Close annotation popup when word popup opens
+		const handleWordPopupOpen = () => closePopup();
+		window.addEventListener('wordpopup:open', handleWordPopupOpen);
+		return () => window.removeEventListener('wordpopup:open', handleWordPopupOpen);
 	});
 </script>
 
@@ -249,7 +286,9 @@
 			{/if}
 
 			<!-- Article body -->
-			<div class="article-body">
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div class="article-body" onclick={handleWordClick}>
 				{#each paragraphs as para, pi}
 					{#if para.some(s => s.text.trim())}
 						<p class="para">
@@ -259,9 +298,9 @@
 										class="highlight {typeColor(seg.annotation.type)}"
 										onclick={(e) => openAnnotation(seg.annotation!, e)}
 										title={seg.annotation.explanation}
-									>{seg.text}</button>
+									>{@html tokenizeText(seg.text)}</button>
 								{:else}
-									{seg.text}
+									{@html tokenizeText(seg.text)}
 								{/if}
 							{/each}
 						</p>
@@ -270,23 +309,6 @@
 			</div>
 		</div>
 
-		<!-- Annotations sidebar -->
-		{#if annotations.length > 0}
-			<aside class="sidebar">
-				<h2 class="sidebar-title">Language notes</h2>
-				<div class="ann-list">
-					{#each annotations as ann}
-						<button class="ann-item" onclick={(e) => openAnnotation(ann, e)}>
-							<div class="ann-header">
-								<span class="ann-text">{ann.text}</span>
-								<span class="ann-type {typeColor(ann.type)}">{typeLabel(ann.type)}</span>
-							</div>
-							<p class="ann-exp">{ann.explanation}</p>
-						</button>
-					{/each}
-				</div>
-			</aside>
-		{/if}
 	</main>
 </div>
 
@@ -306,7 +328,16 @@
 					<span class="ann-popup-word">{selectedAnnotation.text}</span>
 					<span class="ann-popup-type {typeColor(selectedAnnotation.type)}">{typeLabel(selectedAnnotation.type)}</span>
 				</div>
-				<button class="ann-popup-close" onclick={closePopup}><X size={15} /></button>
+				<div class="ann-popup-actions">
+					<button class="ann-tts-btn" class:playing={annTtsLoading} onclick={playAnnotationTTS} aria-label="Listen to pronunciation" title="Listen">
+						<svg width="14" height="11" viewBox="0 0 22 16" fill="none" overflow="visible">
+							<path d="M10.15 1.9C10.1 1.51 9.64 1.33 9.34 1.59L5.33 5H1.89C1.57 5 1.29 5.23 1.24 5.55C1.14 6.18 1 7.23 1 8C1 8.77 1.14 9.82 1.24 10.45C1.29 10.77 1.57 11 1.89 11H5.33L9.34 14.41C9.64 14.67 10.1 14.49 10.15 14.1C10.28 12.88 10.5 10.5 10.5 8C10.5 5.45 10.28 3.12 10.15 1.9Z" fill="currentColor"/>
+							<path class="wave wave-1" d="M14.42 4.75C15.33 5.65 15.84 6.88 15.84 8.16C15.84 9.45 15.33 10.67 14.42 11.58" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+							<path class="wave wave-2" d="M17.84 1.33C19.65 3.15 20.67 5.6 20.67 8.17C20.67 10.73 19.65 13.19 17.84 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+						</svg>
+					</button>
+					<button class="ann-popup-close" onclick={closePopup}><X size={15} /></button>
+				</div>
 			</div>
 			<div class="ann-popup-body">
 				<p class="ann-popup-exp">{selectedAnnotation.explanation}</p>
@@ -337,11 +368,12 @@
 		flex-direction: column;
 	}
 
+	/* ── Top bar ── */
 	.topbar {
 		display: flex;
 		align-items: center;
 		gap: 12px;
-		padding: 12px 24px;
+		padding: 12px 32px;
 		background: var(--gray1);
 		border-bottom: 1px solid var(--gray3);
 		position: sticky;
@@ -395,8 +427,8 @@
 		background: var(--accent);
 		color: white;
 		border: none;
-		border-radius: var(--radius-sm);
-		padding: 8px 16px;
+		border-radius: var(--radius-pill);
+		padding: 8px 18px;
 		font-size: 13px;
 		font-weight: 600;
 		cursor: pointer;
@@ -407,30 +439,33 @@
 	.analyze-btn:hover:not(:disabled) { background: var(--accent-hover); }
 	.analyze-btn:disabled { opacity: 0.5; cursor: default; }
 
+	/* ── Main layout ── */
 	.main {
 		flex: 1;
 		display: flex;
-		max-width: 1200px;
+		justify-content: center;
+		max-width: 800px;
 		margin: 0 auto;
 		width: 100%;
-		padding: 36px 24px;
-		gap: 36px;
-		align-items: flex-start;
+		padding: 48px 32px;
 		box-sizing: border-box;
 	}
 
+	/* ── Article content ── */
 	.content-wrap {
 		flex: 1;
 		min-width: 0;
+		max-width: 720px;
 	}
 
 	.article-title {
 		font-family: var(--font-display);
-		font-size: 28px;
-		font-weight: 400;
+		font-size: 32px;
+		font-weight: 500;
 		color: var(--gray12);
-		line-height: 1.3;
-		margin: 0 0 24px;
+		line-height: 1.25;
+		margin: 0 0 28px;
+		letter-spacing: -0.02em;
 	}
 
 	.analyze-error {
@@ -449,14 +484,18 @@
 		background: var(--gray2);
 		border: 1px solid var(--gray4);
 		border-radius: var(--radius-sm);
-		margin-bottom: 20px;
+		margin-bottom: 24px;
 	}
 
 	.legend {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 12px;
-		margin-bottom: 20px;
+		gap: 14px;
+		margin-bottom: 28px;
+		padding: 10px 14px;
+		background: var(--gray2);
+		border-radius: var(--radius-sm);
+		border: 1px solid var(--gray3);
 		font-size: 12px;
 		color: var(--gray9);
 	}
@@ -469,26 +508,37 @@
 
 	.legend-swatch {
 		display: inline-block;
-		width: 28px;
-		height: 14px;
+		width: 24px;
+		height: 12px;
 		border-radius: 3px;
 		padding: 0;
 	}
 
+	/* ── Article body typography ── */
 	.article-body {
-		font-size: 17px;
-		line-height: 1.85;
+		font-size: 18px;
+		line-height: 1.9;
 		color: var(--gray12);
+		letter-spacing: -0.005em;
 	}
 
 	.para {
-		margin: 0 0 1.4em;
+		margin: 0 0 1.5em;
+	}
+
+	:global(.word-token) {
+		cursor: pointer;
+		border-radius: 2px;
+		transition: background 0.1s;
+	}
+	:global(.word-token:hover) {
+		background: color-mix(in srgb, var(--accent) 12%, transparent);
 	}
 
 	.highlight {
 		cursor: pointer;
-		border-radius: 2px;
-		padding: 0 1px;
+		border-radius: 3px;
+		padding: 1px 2px;
 		transition: filter 0.1s;
 		text-decoration: none;
 		border: none;
@@ -505,83 +555,14 @@
 	.highlight-news { background: rgba(20, 184, 166, 0.15); border-bottom: 2px solid rgba(20, 184, 166, 0.5); color: inherit; }
 	.highlight-grammar { background: rgba(234, 179, 8, 0.15); border-bottom: 2px solid rgba(234, 179, 8, 0.5); color: inherit; }
 
-	.sidebar {
-		width: 280px;
-		flex-shrink: 0;
-		position: sticky;
-		top: 68px;
-		max-height: calc(100vh - 88px);
-		overflow-y: auto;
-	}
+	/* ── Annotation type colors (popup) ── */
+	.ann-popup-type.highlight-pv    { background: rgba(59,130,246,0.35);  color: #2563eb; }
+	.ann-popup-type.highlight-col   { background: rgba(249,115,22,0.3); color: #ea580c; }
+	.ann-popup-type.highlight-idiom { background: rgba(168,85,247,0.3); color: #9333ea; }
+	.ann-popup-type.highlight-news  { background: rgba(20,184,166,0.3); color: #0d9488; }
+	.ann-popup-type.highlight-grammar { background: rgba(234,179,8,0.3); color: #a16207; }
 
-	.sidebar-title {
-		font-size: 11px;
-		font-weight: 500;
-		color: var(--gray9);
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		margin: 0 0 12px;
-	}
-
-	.ann-list {
-		display: flex;
-		flex-direction: column;
-		gap: 4px;
-	}
-
-	.ann-item {
-		background: transparent;
-		border: 1px solid transparent;
-		border-radius: var(--radius-sm);
-		padding: 10px 12px;
-		text-align: left;
-		cursor: pointer;
-		transition: background var(--duration-fast) var(--ease);
-		min-height: auto;
-		width: 100%;
-	}
-	.ann-item:hover { background: var(--gray2); }
-
-	.ann-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 8px;
-		margin-bottom: 4px;
-	}
-
-	.ann-text {
-		font-size: 14px;
-		font-weight: 600;
-		color: var(--gray12);
-	}
-
-	.ann-type {
-		font-size: 10.5px;
-		font-weight: 600;
-		padding: 1px 6px;
-		border-radius: var(--radius-pill);
-		white-space: nowrap;
-		flex-shrink: 0;
-	}
-
-	.ann-type.highlight-pv,    .ann-popup-type.highlight-pv    { background: rgba(59,130,246,0.2);  color: #3b82f6; }
-	.ann-type.highlight-col,   .ann-popup-type.highlight-col   { background: rgba(249,115,22,0.18); color: #f97316; }
-	.ann-type.highlight-idiom, .ann-popup-type.highlight-idiom { background: rgba(168,85,247,0.18); color: #a855f7; }
-	.ann-type.highlight-news,  .ann-popup-type.highlight-news  { background: rgba(20,184,166,0.18); color: #14b8a6; }
-	.ann-type.highlight-grammar, .ann-popup-type.highlight-grammar { background: rgba(234,179,8,0.18); color: #b45309; }
-
-	.ann-exp {
-		font-size: 12.5px;
-		color: var(--gray9);
-		margin: 0;
-		line-height: 1.45;
-		display: -webkit-box;
-		-webkit-line-clamp: 2;
-		-webkit-box-orient: vertical;
-		overflow: hidden;
-	}
-
+	/* ── Annotation popup ── */
 	.ann-backdrop {
 		position: fixed;
 		inset: 0;
@@ -592,7 +573,7 @@
 		position: fixed;
 		transform: translate(-50%, -100%);
 		z-index: 1000;
-		width: min(300px, calc(100vw - 24px));
+		width: min(320px, calc(100vw - 24px));
 		animation: annPopIn var(--duration-fast) var(--ease);
 	}
 	.ann-popup:not(.above) { transform: translate(-50%, 0); }
@@ -608,11 +589,11 @@
 	}
 
 	.ann-popup-content {
-		background: var(--gray2);
+		background: var(--bg-card, var(--gray2));
 		border: 1px solid var(--gray4);
 		border-radius: var(--radius-md);
 		overflow: hidden;
-		box-shadow: var(--shadow-lg);
+		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.03);
 	}
 
 	.ann-popup-header {
@@ -620,7 +601,7 @@
 		align-items: flex-start;
 		justify-content: space-between;
 		gap: 8px;
-		padding: 12px 14px 10px;
+		padding: 14px 16px 10px;
 	}
 
 	.ann-popup-title {
@@ -644,6 +625,38 @@
 		white-space: nowrap;
 	}
 
+	.ann-popup-actions {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		flex-shrink: 0;
+	}
+
+	.ann-tts-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 26px;
+		height: 26px;
+		border-radius: 7px;
+		background: var(--accent, #4285f4);
+		border: none;
+		color: #fff;
+		cursor: pointer;
+		padding: 0;
+		min-height: auto;
+		min-width: auto;
+		transition: transform 0.15s, opacity 0.15s;
+	}
+	.ann-tts-btn:hover { transform: scale(1.08); opacity: 0.9; }
+	.ann-tts-btn:active { transform: scale(0.95); }
+
+	.ann-tts-btn .wave { opacity: 0.5; transition: opacity 0.2s; }
+	.ann-tts-btn:hover .wave { opacity: 0.8; }
+	.ann-tts-btn.playing .wave-1 { animation: waveIn 0.6s ease-in-out infinite alternate; }
+	.ann-tts-btn.playing .wave-2 { animation: waveIn 0.6s ease-in-out 0.15s infinite alternate; }
+	@keyframes waveIn { 0% { opacity: 0.15; } 100% { opacity: 1; } }
+
 	.ann-popup-close {
 		background: none;
 		border: none;
@@ -659,20 +672,20 @@
 	.ann-popup-close:hover { color: var(--gray12); }
 
 	.ann-popup-body {
-		padding: 0 14px 10px;
+		padding: 0 16px 12px;
 		border-top: 1px solid var(--gray3);
 	}
 
 	.ann-popup-exp {
-		font-size: 14.5px;
+		font-size: 15px;
 		line-height: 1.65;
 		color: var(--gray12);
-		margin: 10px 0 0;
+		margin: 12px 0 0;
 		font-weight: 500;
 	}
 
 	.ann-popup-footer {
-		padding: 8px 14px 12px;
+		padding: 8px 16px 12px;
 		border-top: 1px solid var(--gray3);
 	}
 
@@ -701,10 +714,12 @@
 	:global(.spin) { animation: spin 0.8s linear infinite; }
 	@keyframes spin { to { transform: rotate(360deg); } }
 
+	/* ── Responsive ── */
 	@media (max-width: 768px) {
-		.main { flex-direction: column; padding: 20px 16px; }
-		.sidebar { width: 100%; position: static; max-height: none; }
-		.article-title { font-size: 22px; }
-		.article-body { font-size: 16px; }
+		.main { padding: 24px 20px; }
+		.content-wrap { max-width: 100%; }
+		.article-title { font-size: 24px; }
+		.article-body { font-size: 16px; line-height: 1.8; }
+		.topbar { padding: 12px 16px; }
 	}
 </style>

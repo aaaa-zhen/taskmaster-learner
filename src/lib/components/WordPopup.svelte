@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { BookmarkPlus, Volume2 } from 'lucide-svelte';
+	import { BookmarkPlus } from 'lucide-svelte';
 	import { currentTime, isPlaying, subtitleVisible } from '$lib/stores/player';
 	import { requireAuth } from '$lib/stores/auth';
 	import { playPronunciation } from '$lib/utils/tts';
@@ -38,6 +38,7 @@
 	let entry = $state<WordEntry>({});
 	let x = $state(0);
 	let y = $state(0);
+	let below = $state(false);
 	let saved = $state(false);
 	let toastVisible = $state(false);
 	let toastWord = $state('');
@@ -66,21 +67,24 @@
 		// Dispatch a custom event so the video player can pause
 		window.dispatchEvent(new CustomEvent('wordpopup:open'));
 
+		positionPopup(rect);
+		lookupWord(w, context);
+	}
+
+	function positionPopup(rect: DOMRect) {
 		const popupWidth = Math.min(280, window.innerWidth - 24);
-
 		let px = rect.left + rect.width / 2;
-		let py = rect.top - 12;
-
 		px = Math.max(popupWidth / 2 + 12, Math.min(px, window.innerWidth - popupWidth / 2 - 12));
 
-		if (py < 180) {
-			py = rect.bottom + 12;
+		if (rect.top < 360) {
+			// Not enough room above — show below
+			below = true;
+			y = rect.bottom + 10;
+		} else {
+			below = false;
+			y = rect.top - 10;
 		}
-
 		x = px;
-		y = py;
-
-		lookupWord(w, context);
 	}
 
 	// Double-click to look up word directly
@@ -103,15 +107,7 @@
 		subtitleVisible.set(true);
 		window.dispatchEvent(new CustomEvent('wordpopup:open'));
 
-		const popupWidth = Math.min(280, window.innerWidth - 24);
-		let px = rect.left + rect.width / 2;
-		let py = rect.top - 12;
-		px = Math.max(popupWidth / 2 + 12, Math.min(px, window.innerWidth - popupWidth / 2 - 12));
-		if (py < 180) py = rect.bottom + 12;
-
-		x = px;
-		y = py;
-
+		positionPopup(rect);
 		lookupWord(selected, context);
 	}
 
@@ -349,13 +345,17 @@
 {#if visible}
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div class="backdrop" onclick={dismiss} onkeydown={() => {}}></div>
-	<div class="popup" style="left: {x}px; top: {y}px;" role="tooltip">
+	<div class="popup" class:below style="left: {x}px; top: {y}px;" role="tooltip">
 		<div class="popup-content">
 			<div class="popup-header">
 				<span class="popup-word">{word}</span>
 				<div class="popup-header-actions">
-						<button class="tts-btn" class:loading={ttsLoading} onclick={playTTS} aria-label="Listen to pronunciation" title="Listen">
-							<Volume2 size={14} strokeWidth={2} />
+						<button class="tts-btn" class:playing={ttsLoading} onclick={playTTS} aria-label="Listen to pronunciation" title="Listen">
+							<svg class="speaker-icon" width="14" height="11" viewBox="0 0 22 16" fill="none" overflow="visible">
+								<path d="M10.15 1.9C10.1 1.51 9.64 1.33 9.34 1.59L5.33 5H1.89C1.57 5 1.29 5.23 1.24 5.55C1.14 6.18 1 7.23 1 8C1 8.77 1.14 9.82 1.24 10.45C1.29 10.77 1.57 11 1.89 11H5.33L9.34 14.41C9.64 14.67 10.1 14.49 10.15 14.1C10.28 12.88 10.5 10.5 10.5 8C10.5 5.45 10.28 3.12 10.15 1.9Z" fill="currentColor"/>
+								<path class="wave wave-1" d="M14.42 4.75C15.33 5.65 15.84 6.88 15.84 8.16C15.84 9.45 15.33 10.67 14.42 11.58" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+								<path class="wave wave-2" d="M17.84 1.33C19.65 3.15 20.67 5.6 20.67 8.17C20.67 10.73 19.65 13.19 17.84 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+							</svg>
 						</button>
 						<button class="popup-close" onclick={dismiss} aria-label="Close word lookup">&times;</button>
 					</div>
@@ -416,18 +416,20 @@
 		transform: translate(-50%, -100%);
 		z-index: 1000;
 		width: min(280px, calc(100vw - 24px));
-		animation: popupIn 0.15s ease-out;
+		animation: popupInAbove 0.15s ease-out;
+	}
+	.popup.below {
+		transform: translate(-50%, 0);
+		animation: popupInBelow 0.15s ease-out;
 	}
 
-	@keyframes popupIn {
-		from {
-			opacity: 0;
-			transform: translate(-50%, -100%) translateY(6px);
-		}
-		to {
-			opacity: 1;
-			transform: translate(-50%, -100%) translateY(0);
-		}
+	@keyframes popupInAbove {
+		from { opacity: 0; transform: translate(-50%, -100%) translateY(6px); }
+		to   { opacity: 1; transform: translate(-50%, -100%) translateY(0); }
+	}
+	@keyframes popupInBelow {
+		from { opacity: 0; transform: translate(-50%, 0) translateY(-6px); }
+		to   { opacity: 1; transform: translate(-50%, 0) translateY(0); }
 	}
 
 	.popup-content {
@@ -435,6 +437,7 @@
 		border: 1px solid var(--border);
 		border-radius: var(--radius-md);
 		overflow: hidden;
+		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.03);
 	}
 
 	.popup-header {
@@ -488,18 +491,36 @@
 		justify-content: center;
 		width: 26px;
 		height: 26px;
-		border-radius: var(--radius-sm);
-		background: none;
+		border-radius: 7px;
+		background: var(--accent, #4285f4);
 		border: none;
-		color: var(--text-light);
+		color: #fff;
 		cursor: pointer;
 		padding: 0;
 		min-height: auto;
 		min-width: auto;
-		transition: color 0.12s, background 0.12s;
+		transition: transform 0.15s, opacity 0.15s;
 	}
-	.tts-btn:hover { color: var(--accent); background: var(--accent-soft); }
-	.tts-btn.loading { opacity: 0.5; cursor: default; }
+	.tts-btn:hover { transform: scale(1.08); opacity: 0.9; }
+	.tts-btn:active { transform: scale(0.95); }
+
+	.speaker-icon .wave {
+		opacity: 0.5;
+		transition: opacity 0.2s;
+	}
+	.tts-btn:hover .wave { opacity: 0.8; }
+
+	.tts-btn.playing .wave-1 {
+		animation: waveIn 0.6s ease-in-out infinite alternate;
+	}
+	.tts-btn.playing .wave-2 {
+		animation: waveIn 0.6s ease-in-out 0.15s infinite alternate;
+	}
+
+	@keyframes waveIn {
+		0%   { opacity: 0.15; }
+		100% { opacity: 1; }
+	}
 	.popup-close {
 		display: flex;
 		align-items: center;

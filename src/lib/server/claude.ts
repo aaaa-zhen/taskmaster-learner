@@ -727,15 +727,15 @@ Rules:
 - Only annotate items that actually appear verbatim in the text
 - Prefer items that intermediate learners (B1-B2) would find genuinely useful
 - Skip very simple or obvious items
-- For each item: provide the exact text substring, type, and a simple 1-sentence explanation
+- The explanation MUST explain the meaning in the context of THIS article. Write it so simply that a 10-year-old could understand. Use short, everyday words. For example, if the text says "called you a parasite", explain: "Cruz called her a parasite — that's a mean way of saying someone takes from others without giving back. He was being rude about her."
 - start_pos and end_pos are character offsets within the article text
 - Return 10–25 annotations total, prioritizing quality over quantity
 
 Return JSON only:
 {
   "annotations": [
-    {"type": "phrasal_verb", "text": "carry out", "explanation": "To do or complete something, especially a task or plan.", "start_pos": 45, "end_pos": 54},
-    {"type": "collocation", "text": "raise concerns", "explanation": "'Raise concerns' means to mention worries about something.", "start_pos": 120, "end_pos": 134}
+    {"type": "phrasal_verb", "text": "carry out", "explanation": "Here it means the government completed the planned investigation they had announced.", "start_pos": 45, "end_pos": 54},
+    {"type": "collocation", "text": "raise concerns", "explanation": "The opposition party publicly expressed worries about the new policy's impact on workers.", "start_pos": 120, "end_pos": 134}
   ]
 }`,
 		2000,

@@ -5,17 +5,10 @@
       <stop offset="100%" stop-color="#0e0e0e"/>
     </linearGradient>
     <linearGradient id="accent" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#e8944c"/>
-      <stop offset="100%" stop-color="#c67030"/>
+      <stop offset="0%" stop-color="#5b8def"/>
+      <stop offset="100%" stop-color="#3b6fd6"/>
     </linearGradient>
   </defs>
-  <!-- Rounded square background -->
-  <rect width="512" height="512" rx="108" fill="url(#bg)"/>
-  <!-- Subtle inner border -->
-  <rect x="4" y="4" width="504" height="504" rx="104" fill="none" stroke="#2a2a2a" stroke-width="4"/>
-  <!-- Play triangle -->
-  <path d="M196 148 L196 364 L370 256 Z" fill="url(#accent)"/>
-  <!-- Caption lines -->
-  <rect x="148" y="388" width="216" height="14" rx="7" fill="#e8944c" opacity="0.7"/>
-  <rect x="180" y="416" width="152" height="10" rx="5" fill="#e8944c" opacity="0.35"/>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <path d="M200 148 L200 364 L368 256 Z" fill="url(#accent)"/>
 </svg>

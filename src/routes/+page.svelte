@@ -60,9 +60,12 @@
 	let deleteConfirmTitle = $state('');
 
 	// Article reader
+	let articleMode = $state<'url' | 'paste'>('url');
 	let articleUrl = $state('');
 	let articleLoading = $state(false);
 	let articleError = $state('');
+	let pasteTitle = $state('');
+	let pasteContent = $state('');
 	let articles = $state<any[]>([]);
 
 	$effect(() => { articles = data.articles || []; });
@@ -206,27 +209,39 @@ function isYouTubeUrl(u: string): boolean {
 	}
 
 	async function handleArticleSubmit() {
-		if (!articleUrl.trim()) return;
 		if (!data.user) { authModalOpen.set(true); return; }
 		articleLoading = true;
 		articleError = '';
 		try {
-			const fetchRes = await fetch('/api/articles/fetch', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ url: articleUrl.trim() })
-			});
-			const fetched = await fetchRes.json();
-			if (!fetchRes.ok) { articleError = fetched.error || 'Could not fetch article.'; return; }
+			if (articleMode === 'paste') {
+				if (!pasteTitle.trim() || !pasteContent.trim()) return;
+				const res = await fetch('/api/articles', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ title: pasteTitle.trim(), content: pasteContent.trim() })
+				});
+				const created = await res.json();
+				if (!res.ok) { articleError = created.error || 'Could not create article.'; return; }
+				await goto(`/articles/${created.id}`);
+			} else {
+				if (!articleUrl.trim()) return;
+				const fetchRes = await fetch('/api/articles/fetch', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ url: articleUrl.trim() })
+				});
+				const fetched = await fetchRes.json();
+				if (!fetchRes.ok) { articleError = fetched.error || 'Could not fetch article.'; return; }
 
-			const createRes = await fetch('/api/articles', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ title: fetched.title, url: articleUrl.trim(), source: fetched.source, content: fetched.content })
-			});
-			const created = await createRes.json();
-			if (!createRes.ok) { articleError = created.error || 'Could not save article.'; return; }
-			await goto(`/articles/${created.id}`);
+				const createRes = await fetch('/api/articles', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ title: fetched.title, url: articleUrl.trim(), source: fetched.source, content: fetched.content })
+				});
+				const created = await createRes.json();
+				if (!createRes.ok) { articleError = created.error || 'Could not save article.'; return; }
+				await goto(`/articles/${created.id}`);
+			}
 		} catch {
 			articleError = 'Network error. Please try again.';
 		} finally {
@@ -533,26 +548,61 @@ function isYouTubeUrl(u: string): boolean {
 	{#if data.user}
 	<section class="article-section">
 		<div class="article-input-wrap">
-			<form class="input-box" onsubmit={(e) => { e.preventDefault(); handleArticleSubmit(); }}>
-				<div class="input-row">
-					<FileText size={18} aria-hidden="true" class="yt-icon" />
+			<div class="article-tabs">
+				<button class="article-tab" class:active={articleMode === 'url'} onclick={() => { articleMode = 'url'; articleError = ''; }}>
+					<Link size={14} /> URL
+				</button>
+				<button class="article-tab" class:active={articleMode === 'paste'} onclick={() => { articleMode = 'paste'; articleError = ''; }}>
+					<FileText size={14} /> Paste text
+				</button>
+			</div>
+
+			{#if articleMode === 'url'}
+				<form class="input-box" onsubmit={(e) => { e.preventDefault(); handleArticleSubmit(); }}>
+					<div class="input-row">
+						<FileText size={18} aria-hidden="true" class="yt-icon" />
+						<input
+							bind:value={articleUrl}
+							type="url"
+							placeholder="Paste an article URL (BBC, Guardian, …)"
+							disabled={articleLoading}
+						/>
+						<button type="submit" class="submit-btn" disabled={articleLoading || !articleUrl.trim()}>
+							{#if articleLoading}
+								<Loader2 size={15} class="spin" aria-hidden="true" /> Fetching…
+							{:else}
+								<BookOpen size={15} aria-hidden="true" /> Read
+							{/if}
+						</button>
+					</div>
+				</form>
+			{:else}
+				<form class="paste-form" onsubmit={(e) => { e.preventDefault(); handleArticleSubmit(); }}>
 					<input
-						bind:value={articleUrl}
-						type="url"
-						placeholder="Paste an article URL (BBC, Guardian, …)"
+						class="paste-input"
+						type="text"
+						placeholder="Article title"
+						bind:value={pasteTitle}
 						disabled={articleLoading}
 					/>
-					<button type="submit" class="submit-btn" disabled={articleLoading || !articleUrl.trim()}>
+					<textarea
+						class="paste-textarea"
+						placeholder="Paste the article text here…"
+						bind:value={pasteContent}
+						rows={6}
+						disabled={articleLoading}
+					></textarea>
+					<button type="submit" class="submit-btn paste-submit" disabled={articleLoading || !pasteTitle.trim() || !pasteContent.trim()}>
 						{#if articleLoading}
-							<Loader2 size={15} class="spin" aria-hidden="true" /> Fetching…
+							<Loader2 size={15} class="spin" aria-hidden="true" /> Saving…
 						{:else}
-							<BookOpen size={15} aria-hidden="true" /> Read
+							<BookOpen size={15} aria-hidden="true" /> Start reading
 						{/if}
 					</button>
-				</div>
-			</form>
+				</form>
+			{/if}
+
 			{#if articleError}<p class="input-error" role="alert">{articleError}</p>{/if}
-			<p class="article-hint">Or <a href="/articles/new" class="article-hint-link">paste text directly →</a></p>
 		</div>
 
 		{#if articles.length > 0}
@@ -973,13 +1023,80 @@ function isYouTubeUrl(u: string): boolean {
 	.article-section { margin-top: 48px; }
 	.article-input-wrap { margin-bottom: 28px; }
 
-	.article-hint {
-		margin: 10px 0 0;
-		font-size: 13px;
-		color: var(--gray9);
+	.article-tabs {
+		display: flex;
+		gap: 4px;
+		background: var(--gray3);
+		padding: 4px;
+		border-radius: var(--radius-sm);
+		margin-bottom: 12px;
+		max-width: 240px;
 	}
-	.article-hint-link { color: var(--accent); }
-	.article-hint-link:hover { text-decoration: underline; }
+	.article-tab {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		padding: 7px 12px;
+		border: none;
+		background: none;
+		border-radius: calc(var(--radius-sm) - 2px);
+		font-size: 13px;
+		font-weight: 500;
+		color: var(--gray9);
+		cursor: pointer;
+		transition: background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
+		min-height: auto;
+	}
+	.article-tab.active {
+		background: var(--bg-card);
+		color: var(--gray12);
+		box-shadow: var(--shadow-sm);
+	}
+
+	.paste-form {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+	}
+	.paste-input {
+		border: 1px solid var(--gray4);
+		border-radius: var(--radius-sm);
+		padding: 10px 14px;
+		font-size: 14px;
+		color: var(--gray12);
+		background: var(--gray2);
+		font-family: var(--font-ui);
+		transition: border-color var(--duration-fast) var(--ease);
+	}
+	.paste-input:focus {
+		outline: none;
+		border-color: var(--accent);
+		box-shadow: 0 0 0 3px var(--accent-soft);
+	}
+	.paste-input::placeholder { color: var(--gray8); }
+	.paste-textarea {
+		border: 1px solid var(--gray4);
+		border-radius: var(--radius-sm);
+		padding: 10px 14px;
+		font-size: 14px;
+		color: var(--gray12);
+		background: var(--gray2);
+		font-family: var(--font-ui);
+		resize: vertical;
+		line-height: 1.6;
+		transition: border-color var(--duration-fast) var(--ease);
+	}
+	.paste-textarea:focus {
+		outline: none;
+		border-color: var(--accent);
+		box-shadow: 0 0 0 3px var(--accent-soft);
+	}
+	.paste-textarea::placeholder { color: var(--gray8); }
+	.paste-submit {
+		align-self: flex-start;
+	}
 
 	.source-chip {
 		font-size: 11px;
