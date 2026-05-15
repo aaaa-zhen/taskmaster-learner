@@ -1434,22 +1434,30 @@
 		overflow-y: auto;
 		overflow-x: hidden;
 		background: var(--gray1);
+		display: flex;
 	}
 
 	.stage-inner {
 		width: 100%;
 		max-width: min(90vw, 1200px);
-		margin: max(8px, calc(50vh - 380px)) auto 40px;
-		padding: 0 clamp(16px, 2.5vw, 28px);
+		min-height: 100%;
+		margin: 0 auto;
+		padding: clamp(20px, 4vh, 48px) clamp(16px, 2.5vw, 28px);
 		display: flex;
 		flex-direction: column;
 		gap: clamp(6px, 0.8vw, 12px);
 	}
 
+	.stage-inner > .content-card,
+	.stage-inner > .video-shell,
+	.stage-inner > .processing-card {
+		margin-block: auto;
+	}
+
 	@media (max-width: 600px) {
 		.stage-inner {
 			max-width: 100%;
-			margin-top: 0;
+			padding-top: 0;
 		}
 	}
 
@@ -1695,7 +1703,8 @@
 			gap: 12px;
 			padding: 14px 20px 16px;
 			border-left: 3px solid var(--accent);
-			min-height: 80px;
+			height: 124px;
+			overflow: hidden;
 			transition: opacity var(--duration-normal) var(--ease), background-color var(--duration-normal) var(--ease);
 		}
 		.caption-text {
@@ -1760,7 +1769,9 @@
 			display: flex;
 			flex-wrap: wrap;
 			gap: 6px;
-			margin-top: 10px;
+			margin-top: 8px;
+			max-height: 24px;
+			overflow: hidden;
 		}
 		.caption-chip {
 			border: 1px solid color-mix(in srgb, var(--chip-color) 45%, var(--border));
@@ -1770,6 +1781,7 @@
 			color: color-mix(in srgb, var(--chip-color) 88%, var(--text));
 			padding: 4px 9px;
 			font-size: 11px;
+			line-height: 1;
 			font-weight: 700;
 			letter-spacing: 0.04em;
 			text-transform: uppercase;
@@ -2056,7 +2068,7 @@
 
 			/* Caption bar: tap to play/pause, bigger touch target */
 			.caption-bar {
-				min-height: 64px;
+				height: 112px;
 				padding: 14px 16px;
 				cursor: pointer;
 				-webkit-tap-highlight-color: transparent;
