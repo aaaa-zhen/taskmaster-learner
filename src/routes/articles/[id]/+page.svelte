@@ -236,21 +236,24 @@
 	};
 	type QuizAnswer = { questionIndex: number; selected: number; correct: boolean; };
 	type QuizDiagnosis = {
-		score: number; total: number; percentage: number;
-		comprehension: Record<string, { correct: number; total: number }>;
+		score: number; total: number; percentage?: number;
+		comprehension?: string | Record<string, { correct: number; total: number }>;
+		byCategory?: { category: string; correct: number; total: number }[];
 		summary: string; recommendations: string[];
 	};
+	type QuizRound = 'initial' | 'adaptive';
 
-	let quizOpen = (false);
+	let quizOpen = $state(false);
 	let quizPhase = $state<'idle'|'loading'|'answering'|'diagnosis'>('idle');
-	let quizQuestions = <QuizQuestion[]>([]);
-	let quizAnswers = <QuizAnswer[]>([]);
-	let quizSelected = <number | null>(null);
-	let quizCurrentIdx = (0);
-	let quizDiagnosis = <QuizDiagnosis | null>(null);
+	let quizQuestions = $state<QuizQuestion[]>([]);
+	let quizAnswers = $state<QuizAnswer[]>([]);
+	let quizSelected = $state<number | null>(null);
+	let quizCurrentIdx = $state(0);
+	let quizDiagnosis = $state<QuizDiagnosis | null>(null);
 	let quizError = $state('');
-	let quizAllQuestions = <QuizQuestion[]>([]);
-	let quizAllAnswers = <QuizAnswer[]>([]);
+	let quizAllQuestions = $state<QuizQuestion[]>([]);
+	let quizAllAnswers = $state<QuizAnswer[]>([]);
+	let quizRound = $state<QuizRound>('initial');
 
 	async function startQuiz() {
 		quizOpen = true;
@@ -262,6 +265,7 @@
 		quizAllAnswers = [];
 		quizCurrentIdx = 0;
 		quizDiagnosis = null;
+		quizRound = 'initial';
 		try {
 			const res = await fetch('/api/quiz', {
 				method: 'POST',
@@ -295,6 +299,11 @@
 			return;
 		}
 		// All answered — adaptive round or diagnose
+		if (quizRound === 'adaptive') {
+			await finishQuiz();
+			return;
+		}
+
 		quizPhase = 'loading';
 		try {
 			const res = await fetch('/api/quiz', {
@@ -314,6 +323,7 @@
 			quizAllQuestions = [...quizAllQuestions, ...quizQuestions];
 			quizAnswers = [];
 			quizCurrentIdx = 0;
+			quizRound = 'adaptive';
 			quizPhase = 'answering';
 		} catch (e) {
 			quizError = e instanceof Error ? e.message : 'Error';
@@ -336,7 +346,11 @@
 			});
 			const d = await res.json();
 			if (!res.ok) throw new Error(d.error || 'Failed');
-			quizDiagnosis = d.diagnosis;
+			const diagnosis = d.diagnosis as QuizDiagnosis;
+			quizDiagnosis = {
+				...diagnosis,
+				percentage: diagnosis.percentage ?? Math.round((diagnosis.score / Math.max(1, diagnosis.total)) * 100)
+			};
 			quizPhase = 'diagnosis';
 		} catch (e) {
 			quizError = e instanceof Error ? e.message : 'Error';
@@ -363,17 +377,6 @@
 			{/if}
 		</div>
 		<div class="header-actions">
-			<button
-				class="analyze-btn"
-				onclick={runAnalysis}
-				disabled={analyzing}
-			>
-				{#if analyzing}
-					<Loader2 size={15} class="spin" /> Analyzing…
-				{:else}
-					<Sparkles size={15} /> {annotations.length ? 'Re-analyze' : 'Analyze'}
-				{/if}
-			</button>
 			<button class="analyze-btn quiz-btn" onclick={startQuiz} disabled={quizPhase === 'loading'}>
 				{#if quizPhase === 'loading'}
 					<Loader2 size={15} class="spin" /> Loading…
@@ -482,7 +485,7 @@
 
 
 {#if quizOpen}
-<div class=quiz-panel role=dialog aria-label=Comprehension quiz>
+<div class=quiz-panel role="dialog" aria-label="Comprehension quiz">
 	<div class=quiz-header>
 		<span class=quiz-title><BrainCircuit size={15} /> Comprehension Quiz</span>
 		<button class=quiz-close onclick={() => { quizOpen = false; quizPhase = 'idle'; }}><X size={15} /></button>
