@@ -7,7 +7,7 @@ const COOKIES_PATH = path.join(process.cwd(), 'cookies.txt');
 
 // Only the first user (site owner) can upload cookies
 export const POST: RequestHandler = async ({ request, locals }) => {
-	if (!locals.user || locals.user.id !== 1) {
+	if (!locals.user || locals.user.id !== 4) {
 		return json({ error: 'Unauthorized' }, { status: 403 });
 	}
 
