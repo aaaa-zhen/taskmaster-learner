@@ -172,8 +172,5 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 
 	const response = await resolve(event);
-	// Required for ffmpeg.wasm (SharedArrayBuffer needs cross-origin isolation)
-	response.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
-	response.headers.set('Cross-Origin-Embedder-Policy', 'credentialless');
 	return response;
 };

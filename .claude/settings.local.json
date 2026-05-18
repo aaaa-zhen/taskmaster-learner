@@ -30,7 +30,13 @@
       "Bash(yt-dlp --cookies-from-browser chrome --get-title 'https://www.youtube.com/watch?v=6UgncvV8tWo')",
       "Bash(yt-dlp --cookies-from-browser chrome -o /tmp/yt-cookies-test.txt --cookies /tmp/yt-cookies.txt --skip-download 'https://www.youtube.com/watch?v=6UgncvV8tWo')",
       "Bash(git pull:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(git:*)",
+      "Bash(grep -E \"\\\\.svelte$\")",
+      "Bash(PEM=\"/Users/mafuzhen/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files/shoujineng7373_ca92/business/favorite/temp/my.pem\")",
+      "WebFetch(domain:www.agentation.com)",
+      "WebFetch(domain:benji.org)",
+      "Bash(grep -n \"quiz-overlay\\\\|quiz-card\\\\|quiz-panel\\\\|quiz-backdrop\" /Users/mafuzhen/Desktop/MyProject/clip-learner/src/routes/episode/[id]/+page.svelte)"
     ]
   }
 }
