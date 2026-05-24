@@ -268,7 +268,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 8px 14px;
+		padding: 10px 16px;
 		background: var(--bg-card);
 		border-top: 1px solid var(--border);
 		gap: 12px;
@@ -320,20 +320,20 @@
 
 	.shortcut-btn {
 		font-family: var(--font-ui);
-		font-size: 11px;
-		color: var(--text-light);
-		background: var(--bg-dark);
-		padding: 4px 10px;
-		border-radius: 4px;
-		border: 1px solid var(--border);
+		font-size: 12px;
+		color: var(--text-muted);
+		background: var(--gray3);
+		padding: 5px 12px;
+		border-radius: 8px;
+		border: none;
 		cursor: pointer;
-		transition: background 0.12s, color 0.12s, border-color 0.12s;
+		transition: background 0.12s, color 0.12s;
 		min-height: auto;
+		font-weight: 500;
 	}
 	.shortcut-btn:hover {
-		background: var(--accent);
-		color: white;
-		border-color: var(--accent);
+		background: var(--gray4);
+		color: var(--text);
 	}
 	.shortcut-btn:active {
 		transform: scale(0.96);

@@ -125,6 +125,8 @@
 	const showCaptionText = $derived(
 		!!activeSegment && (captionMode !== 'listen' || !$isPlaying)
 	);
+
+
 	const captionStatusText = $derived.by(() => {
 		if (activeSegment && captionMode === 'listen' && $isPlaying) return 'Pause to read this line';
 		if (!activeSegment && $isPlaying) return 'Listening…';
@@ -1029,28 +1031,29 @@
 								>
 									<div class="caption-text">
 										{#if showCaptionText && activeSegment}
-											<p class="paused-text">
-												{#each captionParts as part, pi}
-													{#if part.span}
-														<span
-															class="span-group"
-															class:hl-phrasal_verb={part.span.type === 'phrasal_verb'}
-															class:hl-collocation={part.span.type === 'collocation'}
-															title={part.span.type === 'phrasal_verb' ? 'Phrasal verb' : 'Collocation'}
-														>{#each (part.text.match(/\s+|[^\s]+/g) || []) as piece}{#if /\S/.test(piece)}<button
+										<p class="paused-text">
+											{#each captionParts as part}
+												{#if part.span}
+													<span class="span-group {part.span.type === 'phrasal_verb' ? 'hl-phrasal_verb' : 'hl-collocation'}">
+														{#each (part.text.match(/\s+|[^\s]+/g) || []) as piece}
+															{#if /\S/.test(piece)}<button
 																type="button"
-																class="caption-word caption-highlight"
+																class="caption-word"
 																onclick={handleCaptionTokenClick}
-															>{piece}</button>{:else}{piece}{/if}{/each}</span>
-													{:else}
-														{#each (part.text.match(/\s+|[^\s]+/g) || []) as piece}{#if /\S/.test(piece)}<button
+															>{piece}</button>{:else}{piece}{/if}
+														{/each}
+													</span>
+												{:else}
+													{#each (part.text.match(/\s+|[^\s]+/g) || []) as piece}
+														{#if /\S/.test(piece)}<button
 															type="button"
 															class="caption-word"
 															onclick={handleCaptionTokenClick}
-														>{piece}</button>{:else}{piece}{/if}{/each}
-													{/if}
-												{/each}
-											</p>
+														>{piece}</button>{:else}{piece}{/if}
+													{/each}
+												{/if}
+											{/each}
+										</p>
 										{:else}
 											<p class="paused-text hint">{captionStatusText}</p>
 										{/if}
@@ -1471,9 +1474,9 @@
 
 	.stage-inner {
 		width: 100%;
-		max-width: 960px;
+		max-width: 920px;
 		margin: 0 auto;
-		padding: 32px 24px 40px;
+		padding: 24px 20px 40px;
 		display: flex;
 		flex-direction: column;
 		gap: 0;
@@ -1658,10 +1661,10 @@
 
 		.content-card {
 			border: none;
-			border-radius: 14px;
+			border-radius: 12px;
 			background: var(--bg-card);
 			overflow: hidden;
-			box-shadow: 0 24px 64px rgba(0,0,0,0.18);
+			box-shadow: 0 32px 80px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.05);
 		}
 		.caption-panel {
 			border-top: 1px solid var(--gray4);
@@ -1674,6 +1677,7 @@
 			gap: 12px;
 			padding: 10px 16px;
 			border-bottom: 1px solid var(--gray3);
+			background: var(--gray2);
 		}
 		.caption-mode,
 		.caption-actions {
@@ -1684,7 +1688,7 @@
 		.caption-mode {
 			padding: 3px;
 			border: none;
-			border-radius: var(--radius-sm);
+			border-radius: 10px;
 			background: var(--gray3);
 		}
 		.caption-mode-btn,
@@ -1710,8 +1714,9 @@
 			background: var(--gray4);
 		}
 		.caption-mode-btn.active {
-			background: var(--gray5);
+			background: var(--bg-card);
 			color: var(--gray12);
+			box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 		}
 		.caption-action {
 			border: 1px solid var(--gray4);
@@ -1737,9 +1742,9 @@
 			display: flex;
 			align-items: flex-start;
 			gap: 12px;
-			padding: 14px 20px 16px;
-			border-left: 3px solid var(--accent);
-			min-height: 116px;
+			padding: 28px 28px 36px;
+			border-left: none;
+			height: 140px;
 			overflow: hidden;
 			transition: opacity var(--duration-normal) var(--ease), background-color var(--duration-normal) var(--ease);
 		}
@@ -1748,22 +1753,25 @@
 			min-width: 0;
 		}
 	.paused-text {
-		font-size: 22px;
-		line-height: 1.7;
+		font-size: 23px;
+		line-height: 2;
 		color: var(--text);
 		margin: 0;
 		font-family: var(--font-body);
 		user-select: text;
-		display: -webkit-box;
-		-webkit-line-clamp: 2;
-		line-clamp: 2;
-		-webkit-box-orient: vertical;
-		overflow: hidden;
 		}
 		.paused-text.hint {
 			color: var(--text-muted);
 			font-size: 13px;
 			font-style: italic;
+		}
+		.anim-word {
+			opacity: 0;
+			transition: opacity 0.35s ease;
+			display: inline;
+		}
+		.anim-word.show {
+			opacity: 1;
 		}
 		.caption-word {
 			display: inline;
