@@ -387,16 +387,14 @@ function isSupportedUrl(u: string): boolean {
 					</div>
 				{/if}
 			</div>
-			{#if !data.user?.isGuest}
-				<button
-					type="button"
-					class="theme-toggle"
-					onclick={() => settingsOpen = true}
-					aria-label="Settings"
-				>
-					<Settings size={14} aria-hidden="true" />
-				</button>
-			{/if}
+			<button
+				type="button"
+				class="theme-toggle"
+				onclick={() => settingsOpen = true}
+				aria-label="Settings"
+			>
+				<Settings size={14} aria-hidden="true" />
+			</button>
 			{#if data.user?.isGuest}
 				<button type="button" class="signin-btn" onclick={() => authModalOpen.set(true)}>
 					Sign in

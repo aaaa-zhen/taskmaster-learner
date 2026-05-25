@@ -28,7 +28,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const userId = locals.user!.id;
 	const body = await request.json();
 
-	const allowedKeys = ['api_key', 'base_url', 'model'];
+	const allowedKeys = ['api_key', 'base_url', 'model', 'target_language'];
 
 	for (const key of allowedKeys) {
 		if (key in body && body[key] !== undefined) {

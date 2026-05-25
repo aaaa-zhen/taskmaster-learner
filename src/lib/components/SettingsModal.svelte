@@ -6,11 +6,17 @@
 	let apiKey = $state('');
 	let baseUrl = $state('https://aihubmix.com');
 	let model = $state('gpt-5.4-mini');
+	let targetLanguage = $state('english');
 	let showApiKey = $state(false);
 	let saving = $state(false);
 	let saved = $state(false);
 	let error = $state('');
 	let loaded = $state(false);
+
+	const languages = [
+		{ value: 'english', label: 'English' },
+		{ value: 'italian', label: 'Italian (Italiano)' }
+	];
 
 	$effect(() => {
 		if (open && !loaded) {
@@ -18,6 +24,7 @@
 				if (data.api_key) apiKey = data.api_key;
 				if (data.base_url) baseUrl = data.base_url;
 				if (data.model) model = data.model;
+				if (data.target_language) targetLanguage = data.target_language;
 				loaded = true;
 			}).catch(() => {});
 		}
@@ -34,7 +41,8 @@
 				body: JSON.stringify({
 					api_key: apiKey,
 					base_url: baseUrl,
-					model
+					model,
+					target_language: targetLanguage
 				})
 			});
 			if (!res.ok) throw new Error('Failed to save');
@@ -88,6 +96,15 @@
 			</div>
 
 				<div class="modal-body">
+				<div class="field">
+					<label for="settings-language">Learning language</label>
+					<select id="settings-language" class="lang-select" bind:value={targetLanguage}>
+						{#each languages as lang}
+							<option value={lang.value}>{lang.label}</option>
+						{/each}
+					</select>
+					<span class="hint">The language of the videos you want to study</span>
+				</div>
 				{#if !isGuest}
 					<div class="field">
 						<label for="settings-api-key">API Key</label>
@@ -157,6 +174,7 @@
 					</div>
 					{#if cookiesError}<p class="error">{cookiesError}</p>{/if}
 				</div>
+			{/if}
 
 				<div class="modal-footer">
 					<button class="cancel-btn" onclick={() => open = false}>Cancel</button>
@@ -170,7 +188,6 @@
 						{/if}
 					</button>
 				</div>
-			{/if}
 		</div>
 	</div>
 {/if}
@@ -388,4 +405,18 @@
 		white-space: nowrap;
 	}
 	.cookies-upload-btn { padding: 6px 14px; font-size: 12px; }
+
+	.lang-select {
+		padding: 9px 12px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		font: inherit;
+		font-size: 14px;
+		background: var(--bg);
+		color: var(--text);
+		outline: none;
+		width: 100%;
+		cursor: pointer;
+	}
+	.lang-select:focus { border-color: var(--accent); }
 </style>

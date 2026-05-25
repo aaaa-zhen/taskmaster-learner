@@ -19,7 +19,7 @@ import { openAsBlob } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { env } from '$env/dynamic/private';
-import { getSettings } from './claude';
+import { getSettings, getLangConfig } from './claude';
 import {
 	spawnCapture, sleep, runYtdlpWithRetries, baseYtdlpArgs,
 	hasCookiesFile, isAuthRequiredError, isCookiesExpiredError,
@@ -207,7 +207,8 @@ function isRateLimited(resp: Response, bodyText: string): boolean {
 async function transcribeChunkOpenAI(
 	chunkPath: string,
 	apiKey: string,
-	baseUrl: string
+	baseUrl: string,
+	whisperLang: string = 'en'
 ): Promise<
 	Array<{ start: number; end: number; text: string }>
 > {
@@ -218,7 +219,7 @@ async function transcribeChunkOpenAI(
 		form.append('file', blob, path.basename(chunkPath));
 		form.append('model', WHISPER_MODEL);
 		form.append('response_format', 'verbose_json');
-		form.append('language', 'en');
+		form.append('language', whisperLang);
 
 		const resp = await fetch(`${baseUrl}/audio/transcriptions`, {
 			method: 'POST',
@@ -269,7 +270,7 @@ async function runWithLimit<T>(tasks: Array<() => Promise<T>>, limit: number): P
 	return results;
 }
 
-async function transcribeViaOpenAI(audioPath: string, tmpDir: string, apiKey: string, baseUrl: string): Promise<TranscribeResult> {
+async function transcribeViaOpenAI(audioPath: string, tmpDir: string, apiKey: string, baseUrl: string, whisperLang: string = 'en'): Promise<TranscribeResult> {
 	const totalDuration = (await ffprobeDuration(audioPath)) ?? 0;
 	const numChunks = Math.max(1, Math.ceil(totalDuration / CHUNK_SECONDS));
 
@@ -283,7 +284,7 @@ async function transcribeViaOpenAI(audioPath: string, tmpDir: string, apiKey: st
 	}
 
 	const tasks = chunkSpecs.map((spec) => async () => {
-		const segs = await transcribeChunkOpenAI(spec.path, apiKey, baseUrl);
+		const segs = await transcribeChunkOpenAI(spec.path, apiKey, baseUrl, whisperLang);
 		return segs.map((s) => ({
 			start: s.start + spec.offsetSec,
 			end: s.end + spec.offsetSec,
@@ -302,14 +303,15 @@ async function transcribeViaOpenAI(audioPath: string, tmpDir: string, apiKey: st
 
 async function transcribeViaLocalWhisper(
 	audioPath: string,
-	tmpDir: string
+	tmpDir: string,
+	whisperLang: string = 'en'
 ): Promise<TranscribeResult> {
 	await spawnCapture('whisper', [
 		audioPath,
 		'--model',
 		WHISPER_LOCAL_MODEL,
 		'--language',
-		'en',
+		whisperLang,
 		'--output_format',
 		'json',
 		'--output_dir',
@@ -357,10 +359,12 @@ export async function transcribeYouTubeVideo(
 
 		progress.onTranscribeStart?.();
 		const whisperCfg = await getWhisperConfig(userId);
+		const userSettings = userId ? await getSettings(userId) : null;
+		const whisperLang = getLangConfig(userSettings?.target_language || 'english').whisperCode;
 		if (whisperCfg.apiKey) {
-			return await transcribeViaOpenAI(audioPath, dir, whisperCfg.apiKey, whisperCfg.baseUrl);
+			return await transcribeViaOpenAI(audioPath, dir, whisperCfg.apiKey, whisperCfg.baseUrl, whisperLang);
 		} else {
-			return await transcribeViaLocalWhisper(audioPath, dir);
+			return await transcribeViaLocalWhisper(audioPath, dir, whisperLang);
 		}
 	} finally {
 		await rm(dir, { recursive: true, force: true });
@@ -401,10 +405,12 @@ export async function transcribeAudioFile(
 	const dir = await mkdtemp(path.join(tmpdir(), 'clip-upload-'));
 	try {
 		const whisperCfg = await getWhisperConfig(userId);
+		const userSettings = userId ? await getSettings(userId) : null;
+		const whisperLang = getLangConfig(userSettings?.target_language || 'english').whisperCode;
 		if (whisperCfg.apiKey) {
-			return await transcribeViaOpenAI(audioPath, dir, whisperCfg.apiKey, whisperCfg.baseUrl);
+			return await transcribeViaOpenAI(audioPath, dir, whisperCfg.apiKey, whisperCfg.baseUrl, whisperLang);
 		} else {
-			return await transcribeViaLocalWhisper(audioPath, dir);
+			return await transcribeViaLocalWhisper(audioPath, dir, whisperLang);
 		}
 	} finally {
 		await rm(dir, { recursive: true, force: true });

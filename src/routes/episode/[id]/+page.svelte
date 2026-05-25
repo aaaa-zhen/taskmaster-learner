@@ -310,7 +310,7 @@
 		return () => window.removeEventListener('word:saved', onSaved);
 	});
 
-	const backdropVisible = $derived(notebookOpen || quizOpen || lineHelpOpen);
+	const backdropVisible = $derived(notebookOpen || quizOpen);
 
 	let drawerTtsLoading = $state<string | null>(null);
 
@@ -326,7 +326,7 @@
 		}
 	}
 
-	function closeAll() { notebookOpen = false; quizOpen = false; lineHelpOpen = false; }
+	function closeAll() { notebookOpen = false; quizOpen = false; }
 
 	function openNotebook() { lineHelpOpen = false; notebookOpen = true; }
 
@@ -1922,31 +1922,30 @@
 
 	.help-popup {
 		position: fixed;
-		top: 50%; left: 50%;
-		transform: translate(-50%, -50%);
+		bottom: 24px; right: 24px;
 		z-index: 70;
-		width: min(520px, 90vw);
-		max-height: 80vh;
+		width: min(420px, calc(100vw - 48px));
+		max-height: 50vh;
 		overflow-y: auto;
 		background: var(--gray2);
 		border: 1px solid var(--gray4);
 		border-radius: var(--radius-lg);
 		box-shadow: var(--shadow-lg);
-		padding: 24px;
-		animation: helpPopIn var(--duration-fast) var(--ease);
+		padding: 20px;
+		animation: helpSlideUp var(--duration-fast) var(--ease);
 	}
-	@keyframes helpPopIn {
-		from { opacity: 0; transform: translate(-50%, -48%); }
-		to   { opacity: 1; transform: translate(-50%, -50%); }
+	@keyframes helpSlideUp {
+		from { opacity: 0; transform: translateY(12px); }
+		to   { opacity: 1; transform: translateY(0); }
 	}
 	.help-popup-head {
 		display: flex;
 		align-items: center;
 		gap: 10px;
-		margin-bottom: 16px;
+		margin-bottom: 14px;
 	}
 	.help-popup-head h2 {
-		font-size: 17px;
+		font-size: 16px;
 		font-weight: 600;
 		flex: 1;
 		color: var(--gray12);

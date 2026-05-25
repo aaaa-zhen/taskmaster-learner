@@ -7,8 +7,19 @@ import { env } from '$env/dynamic/private';
 const DEFAULTS = {
 	api_key: '',
 	base_url: 'https://aihubmix.com/v1',
-	model: 'gpt-5.4-mini'
+	model: 'gpt-5.4-mini',
+	target_language: 'english'
 };
+
+/** Language-specific configuration for LLM prompts and Whisper. */
+export const LANG_CONFIG: Record<string, { label: string; whisperCode: string; dictApi: string | null }> = {
+	english:  { label: 'English',  whisperCode: 'en', dictApi: 'https://api.dictionaryapi.dev/api/v2/entries/en/' },
+	italian:  { label: 'Italian',  whisperCode: 'it', dictApi: null },
+};
+
+export function getLangConfig(lang: string) {
+	return LANG_CONFIG[lang] || LANG_CONFIG.english;
+}
 
 /** Daily LLM call limit for guests / shared-key users (~2-3 videos with study). */
 const DAILY_QUOTA = Number(env.DAILY_QUOTA || 20);
@@ -42,7 +53,8 @@ export async function getSettings(userId: number): Promise<typeof DEFAULTS> {
 		return {
 			api_key: env.ANTHROPIC_API_KEY || '',
 			base_url: env.ANTHROPIC_BASE_URL || DEFAULTS.base_url,
-			model: env.ANTHROPIC_MODEL || DEFAULTS.model
+			model: env.ANTHROPIC_MODEL || DEFAULTS.model,
+			target_language: DEFAULTS.target_language
 		};
 	}
 }
@@ -148,17 +160,28 @@ export async function analyzeTranscript(
 	segments: { index: number; text: string }[],
 	userId: number
 ): Promise<AnalysisResult> {
+	const settings = await getSettings(userId);
+	const lang = settings.target_language || 'english';
+	const langLabel = getLangConfig(lang).label;
+	const isEnglish = lang === 'english';
+
 	const transcript = segments
 		.map(s => `[${s.index}] ${s.text}`)
 		.join('\n');
 
-	const text = await chat(`You are helping someone learn English from videos. They understand basic grammar but struggle with jokes, slang, and culture. Write ALL explanations using very simple, easy words — like explaining to a 10-year-old.
+	const langIntro = isEnglish
+		? `You are helping someone learn English from videos. They understand basic grammar but struggle with jokes, slang, and culture.`
+		: `You are helping an English speaker learn ${langLabel} from videos. They understand basic ${langLabel} grammar but struggle with idioms, slang, and cultural references.`;
+
+	const text = await chat(`${langIntro} Write ALL explanations in English using very simple, easy words — like explaining to a 10-year-old.
 
 IMPORTANT RULES:
 1. This transcript comes from YouTube AUTO-CAPTIONS which often have mistakes, especially with accents. When something doesn't make sense, think about what they PROBABLY said.
-2. British comedy is FULL of dirty jokes, sexual innuendo, and double meanings. ALWAYS check if a phrase could have a sexual or rude second meaning — this is often the actual joke. Don't be shy about explaining these. Words like "flicking", "coming", "banging", "blowing", etc. are often used as double entendres (one meaning is innocent, the other is sexual/rude).
-3. Look for DOUBLE ENTENDRE — sentences that sound innocent but have a hidden dirty/funny meaning. This is one of the most common types of British humor and learners need to understand it.
-4. Don't be polite or censor yourself. The learner needs the REAL explanation of why something is funny, even if it's rude or sexual.
+2. ${isEnglish ? `British comedy is FULL of dirty jokes, sexual innuendo, and double meanings. ALWAYS check if a phrase could have a sexual or rude second meaning — this is often the actual joke. Don't be shy about explaining these.
+3. Look for DOUBLE ENTENDRE — sentences that sound innocent but have a hidden dirty/funny meaning.
+4. Don't be polite or censor yourself. The learner needs the REAL explanation of why something is funny, even if it's rude or sexual.` : `Look for cultural references specific to ${langLabel}-speaking countries, regional expressions, and grammar patterns that differ from English.
+3. Explain idioms, slang, and colloquial expressions that a textbook wouldn't teach.
+4. All explanations must be in English.`}
 
 TRANSCRIPT (each line prefixed with [segment_index]):
 ${transcript}
@@ -229,9 +252,12 @@ export async function explainSegment(
 	context: string[],
 	userId: number
 ): Promise<string> {
+	const settings = await getSettings(userId);
+	const lang = settings.target_language || 'english';
+	const langLabel = getLangConfig(lang).label;
 	const contextStr = context.join('\n');
 
-	return chat(`You explain English to a learner. Be brief and clear. No markdown formatting — write plain text only.
+	return chat(`You explain ${langLabel} to a learner. All explanations in English. Be brief and clear. No markdown formatting — write plain text only.
 
 Line: "${segmentText}"
 
@@ -308,8 +334,12 @@ export async function lookupWord(
 		return cached.value;
 	}
 
-	// Try free dictionary API first (instant, <200ms) — only use if it has an example too
-	const dictResult = await tryFreeDictionary(word);
+	// Try free dictionary API first (instant, <200ms) — only works for English
+	const settings = await getSettings(userId);
+	const lang = settings.target_language || 'english';
+	const langLabel = getLangConfig(lang).label;
+	const langCfg = getLangConfig(lang);
+	const dictResult = langCfg.dictApi ? await tryFreeDictionary(word) : null;
 	if (dictResult && dictResult.definition && dictResult.example) {
 		if (lookupCache.size >= LOOKUP_CACHE_MAX) {
 			const firstKey = lookupCache.keys().next().value;
@@ -342,7 +372,7 @@ export async function lookupWord(
 		: '';
 
 	const text = await chat(
-		`You are explaining ${isPhrase ? 'a phrase or sentence' : 'a word'} to a 10-year-old child learning English. Use the SIMPLEST words possible. Short sentences. Fun and clear.
+		`You are explaining ${isPhrase ? 'a phrase or sentence' : 'a word'} to a 10-year-old child learning ${langLabel}. All explanations in English. Use the SIMPLEST words possible. Short sentences. Fun and clear.
 ${phraseDetectionInstruction}
 
 ${isPhrase ? 'Phrase' : 'Word'}: "${word}"
