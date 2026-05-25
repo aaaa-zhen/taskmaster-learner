@@ -257,20 +257,36 @@ export async function explainSegment(
 	const langLabel = getLangConfig(lang).label;
 	const contextStr = context.join('\n');
 
-	return chat(`You explain ${langLabel} to a learner. All explanations in English. Be brief and clear. No markdown formatting — write plain text only.
+	const raw = await chat(`You explain ${langLabel} to a learner. All explanations in English. Be ultra concise.
 
 Line: "${segmentText}"
 
 Context:
 ${contextStr}
 
-Reply in this exact format (skip any section that doesn't apply):
+Return JSON only:
+{
+  "meaning": "Rewrite in 1 simple sentence (max 15 words)",
+  "note": "Why it's interesting — 1 sentence, or empty string if nothing special",
+  "words": [{"w": "hard word", "d": "short definition"}]
+}
 
-Simple meaning: (rewrite in 1 easy sentence)
-Why it's interesting: (1 sentence max)
-Key words: word = simple definition (one per line, only truly hard words)
+Rules:
+- "words" should ONLY contain genuinely difficult/unusual words. Skip common words like "daily life", "welcome", "science", etc.
+- Maximum 3 words. Often 0 is fine.
+- All values in English.`, 250, userId, { json: true });
 
-Rules: No bold, no bullets, no asterisks. Plain text only. Maximum 6 lines total.`, 250, userId);
+	const parsed = extractJson<{ meaning?: string; note?: string; words?: { w: string; d: string }[] }>(raw);
+	if (!parsed) return raw;
+
+	let html = `<div class="help-meaning">${parsed.meaning || ''}</div>`;
+	if (parsed.note) {
+		html += `<div class="help-note">${parsed.note}</div>`;
+	}
+	if (parsed.words?.length) {
+		html += `<div class="help-words">${parsed.words.map(w => `<span class="help-word"><b>${w.w}</b> ${w.d}</span>`).join('')}</div>`;
+	}
+	return html;
 }
 
 interface WordLookupContext {

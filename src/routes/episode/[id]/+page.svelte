@@ -1232,7 +1232,7 @@
 			<span class="dot"></span><span class="dot"></span><span class="dot"></span>
 		</div>
 	{:else if explanation}
-		<div class="help-content">{explanation}</div>
+		<div class="help-content">{@html explanation}</div>
 	{/if}
 </div>
 {/if}
@@ -1961,7 +1961,38 @@
 		margin-bottom: 18px;
 	}
 	.help-quote { font-size: 15px; line-height: 1.55; color: var(--gray12); font-style: italic; margin: 0; }
-	.help-content { font-size: 14px; line-height: 1.75; color: var(--gray12); white-space: pre-line; }
+	.help-content { font-size: 14px; line-height: 1.6; color: var(--gray12); }
+	.help-content :global(.help-meaning) {
+		font-size: 15px;
+		line-height: 1.6;
+		color: var(--gray12);
+		margin-bottom: 10px;
+	}
+	.help-content :global(.help-note) {
+		font-size: 13px;
+		color: var(--gray9);
+		font-style: italic;
+		margin-bottom: 12px;
+	}
+	.help-content :global(.help-words) {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+	.help-content :global(.help-word) {
+		display: inline-flex;
+		align-items: baseline;
+		gap: 4px;
+		font-size: 12px;
+		background: var(--gray3);
+		padding: 4px 10px;
+		border-radius: var(--radius-pill);
+		color: var(--gray11);
+	}
+	.help-content :global(.help-word b) {
+		color: var(--accent);
+		font-weight: 600;
+	}
 
 	.loading-dots { display: flex; justify-content: center; gap: 6px; padding: 30px; }
 	.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: bounce 1.2s ease-in-out infinite; }
