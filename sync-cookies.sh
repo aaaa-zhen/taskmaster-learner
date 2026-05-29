@@ -1,10 +1,18 @@
 #!/bin/bash
-# Auto-extract YouTube cookies from Chrome and upload to VPS
-# Runs via launchd every 12 hours
+# Auto-extract YouTube cookies from Chrome and upload to the VPS's cookies.txt.
+#
+# This file is the SOURCE OF TRUTH, but launchd does NOT run it from here:
+# ~/Desktop is a macOS TCC-protected folder, so the launchd-spawned bash has no
+# permission to read/execute files under it (fails with exit 126 "Operation not
+# permitted"). The agent therefore runs an installed COPY from a non-protected
+# location. After editing this file, re-copy it (see COOKIE-SYNC-SETUP.md).
+#
+# Schedule: com.mafuzhen.clip-cookie-sync runs daily at 09:00 and 21:00.
 
 set -euo pipefail
 
 COOKIE_FILE="/tmp/yt-cookies.txt"
+# Installed copy reads the pem from its own dir; this Desktop path is for manual runs only.
 PEM="/Users/mafuzhen/Desktop/MyProject/clip-learner/my.pem"
 VPS="ubuntu@43.134.87.27"
 VPS_PATH="/home/ubuntu/clip-learner/cookies.txt"
