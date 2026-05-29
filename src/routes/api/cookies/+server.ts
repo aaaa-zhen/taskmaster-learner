@@ -6,6 +6,22 @@ import { query } from '$lib/server/db';
 
 const COOKIES_PATH = path.join(process.cwd(), 'cookies.txt');
 
+/**
+ * Validate that the uploaded text is a real Netscape-format cookies.txt, not a
+ * shell script / JSON / arbitrary text that merely mentions "youtube.com".
+ * Requires the Netscape header AND at least one tab-separated 7-field cookie row.
+ */
+function isNetscapeCookieFile(text: string): boolean {
+	const lines = text.split(/\r?\n/);
+	const header = lines.find((l) => l.trim() !== '');
+	if (!header || !/^#\s*Netscape HTTP Cookie File/i.test(header.trim())) return false;
+	// A valid cookie line: 7 tab-separated fields (domain may be prefixed with #HttpOnly_)
+	return lines.some((l) => {
+		if (l.trim() === '' || (l.startsWith('#') && !l.startsWith('#HttpOnly_'))) return false;
+		return l.split('\t').length === 7;
+	});
+}
+
 // Only the first user (site owner) can upload cookies
 export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!locals.user) {
@@ -25,8 +41,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (file.size > 5 * 1024 * 1024) return json({ error: 'File too large (max 5MB)' }, { status: 413 });
 
 	const text = await file.text();
-	if (!text.includes('youtube.com') && !text.includes('Netscape')) {
-		return json({ error: 'Does not look like a valid Netscape cookies file' }, { status: 400 });
+	if (!isNetscapeCookieFile(text)) {
+		return json(
+			{
+				error:
+					'Not a valid Netscape cookies.txt file. Export cookies from a logged-in browser in Netscape format (the file should start with "# Netscape HTTP Cookie File").'
+			},
+			{ status: 400 }
+		);
 	}
 
 	await writeFile(COOKIES_PATH, text, 'utf8');
